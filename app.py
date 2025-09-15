@@ -9,7 +9,7 @@ warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="Universal Data Analytics Dashboard",
+    page_title="🏢 ERP-Powered Universal Business Analytics Dashboard",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
