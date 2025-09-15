@@ -170,7 +170,7 @@ def generate_smart_insights(df, col_info):
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🔍 Universal Data Analytics Dashboard</h1>', 
+    st.markdown('<h1 class="main-header">🏢 ERP-Powered Universal Business Analytics Dashboard</h1>', 
                 unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Upload ANY CSV/Excel file and get instant analytics - Works with Kaggle datasets!</p>', 
                 unsafe_allow_html=True)
