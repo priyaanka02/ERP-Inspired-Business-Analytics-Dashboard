@@ -403,49 +403,89 @@ def main():
             else:
                 st.info("No numeric columns found")
         
-        # Correlations Tab
-        with tabs[2]:
-            if len(detected['numeric']) >= 2:
-                x_col = st.selectbox("X-Axis", detected['numeric'], key='corr_x')
-                y_col = st.selectbox("Y-Axis", [col for col in detected['numeric'] if col != x_col], key='corr_y')
-                
-                fig = px.scatter(
-                    df,
-                    x=x_col,
-                    y=y_col,
-                    title=f'{x_col} vs {y_col}',
-                    color_discrete_sequence=['#0070F2']
-                    )
+       # Correlations Tab
+with tabs[2]:
+    if len(detected['numeric']) >= 2:
+        # Create sub-tabs for scatter plot and heatmap
+        subtab1, subtab2 = st.tabs(["📊 Scatter Plot", "🔥 Correlation Heatmap"])
+        
+        with subtab1:
+            x_col = st.selectbox("X-Axis", detected['numeric'], key='corr_x')
+            y_col = st.selectbox("Y-Axis", [col for col in detected['numeric'] if col != x_col], key='corr_y')
+            
+            fig = px.scatter(
+                df,
+                x=x_col,
+                y=y_col,
+                title=f'{x_col} vs {y_col}',
+                color_discrete_sequence=['#0070F2']
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            corr = df[x_col].corr(df[y_col])
+            st.metric("Correlation Coefficient", f"{corr:.3f}")
+        
+        with subtab2:
+            st.markdown("### 🔥 Correlation Matrix")
+            
+            numeric_df = df[detected['numeric']]
+            corr_matrix = numeric_df.corr()
+            
+            fig = px.imshow(
+                corr_matrix,
+                text_auto='.2f',
+                aspect="auto",
+                title="Correlation Heatmap",
+                color_continuous_scale='RdBu_r',
+                zmin=-1,
+                zmax=1
+            )
+            fig.update_layout(height=600)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.info("🔴 Red = Positive | ⚪ White = None | 🔵 Blue = Negative")
+    else:
+        st.info("Need at least 2 numeric columns for correlation analysis")
 
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Correlation coefficient
-                corr = df[x_col].corr(df[y_col])
-                st.metric("Correlation Coefficient", f"{corr:.3f}")
-            else:
-                st.info("Need at least 2 numeric columns for correlation analysis")
         
         # Categories Tab
-        with tabs[3]:
-            if detected['categorical']:
-                cat_col = st.selectbox("Select Category", detected['categorical'], key='cat_col')
-                
-                if detected['numeric']:
-                    metric_col = st.selectbox("Select Metric", detected['numeric'], key='cat_metric')
-                    
-                    cat_data = df.groupby(cat_col)[metric_col].sum().sort_values(ascending=False).head(10)
-                    
-                    fig = px.bar(
-                        x=cat_data.index,
-                        y=cat_data.values,
-                        title=f'Top 10 {cat_col} by {metric_col}',
-                        labels={'x': cat_col, 'y': metric_col},
-                        color=cat_data.values,
-                        color_continuous_scale='Blues'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No categorical columns found")
+        # Categories Tab
+with tabs[3]:
+    if detected['categorical']:
+        cat_col = st.selectbox("Select Category", detected['categorical'], key='cat_col')
+        
+        if detected['numeric']:
+            metric_col = st.selectbox("Select Metric", detected['numeric'], key='cat_metric')
+            
+            cat_data = df.groupby(cat_col)[metric_col].sum().sort_values(ascending=False).head(10)
+            
+            # Bar chart and pie chart side by side
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig = px.bar(
+                    x=cat_data.index,
+                    y=cat_data.values,
+                    title=f'Top 10 {cat_col} by {metric_col}',
+                    labels={'x': cat_col, 'y': metric_col},
+                    color=cat_data.values,
+                    color_continuous_scale='Blues'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                fig = px.pie(
+                    values=cat_data.values,
+                    names=cat_data.index,
+                    title=f'{cat_col} Distribution',
+                    color_discrete_sequence=px.colors.sequential.Blues_r,
+                    hole=0.3
+                )
+                fig.update_traces(textposition='inside', textinfo='percent+label')
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No categorical columns found")
+
         
         # Data Preview
         st.markdown("---")
