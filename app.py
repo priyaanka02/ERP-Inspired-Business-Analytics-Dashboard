@@ -483,8 +483,8 @@ with tabs[3]:
                 )
                 fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No categorical columns found")
+        else:
+            st.info("No categorical columns found")
 
         
         # Data Preview
