@@ -2,7 +2,7 @@
 
 > A comprehensive Streamlit-based business intelligence platform for data analysis and visualization, built with automated insights and real-time analytics capabilities.
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue) ![Streamlit](https://img.shields.io/badge/Streamlit-1.49%2B-red) ![License](https://img.shields.io/badge/License-MIT-green) ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue) ![Streamlit](https://img.shields.io/badge/Streamlit-1.49%2B-red) 
 
 ## 🚀 Project Overview
 
