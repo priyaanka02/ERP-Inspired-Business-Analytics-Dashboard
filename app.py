@@ -1,4 +1,4 @@
-# 🏢 ERP-Inspired Business Analytics Dashboard
+# ERP-Inspired Business Analytics Dashboard
 # Enhanced with Revenue Alerts, Churn Prediction & SAP-Style KPIs
 
 import streamlit as st
@@ -279,10 +279,35 @@ def main():
         # Smart column mapping
         column_map = smart_column_mapper(df)
         df = apply_column_mapping(df, column_map)
-        # Show detected mappings
-        if column_map:
-            st.sidebar.success(f"✅ Auto-mapped {len(column_map)} columns")
-        
+
+        # Show column mapping results with detailed feedback
+        with st.sidebar.expander("🔍 Column Detection Results", expanded=True):
+            if column_map:
+                st.success(f"✅ Successfully auto-mapped {len(column_map)} columns")
+                for standard, original in column_map.items():
+                    st.write(f"**{standard}** ← `{original}`")
+            else:
+                st.warning("⚠️ No standard columns auto-detected")
+
+            # Show what's missing
+            required_for_features = {
+                'KPIs': ['Date', 'Total_Sales'],
+                'Alerts': ['Date', 'Total_Sales'],
+                'Churn Prediction': ['Customer', 'Date', 'Total_Sales'],
+                'Product Analysis': ['Product', 'Total_Sales']
+            }
+
+            missing_features = []
+            for feature, required in required_for_features.items():
+                missing = [col for col in required if col not in df.columns]
+                if missing:
+                    missing_features.append((feature, missing))
+
+            if missing_features:
+                st.info("ℹ️ **Features with limited data:**")
+                for feature, missing_cols in missing_features:
+                    st.write(f"• {feature}: missing `{', '.join(missing_cols)}`")
+
         # Detect columns
         detected = smart_data_detection(df)
 
@@ -305,7 +330,7 @@ def main():
                 st.metric("Data Quality", f"{kpis['data_quality_score']}%")
             
         except Exception as e:
-            st.warning(f"Could not generate all KPIs: {str(e)}")
+            st.info("📊 KPIs require Date and Total_Sales columns. Upload data with date and sales/revenue columns.")
         
         # Revenue Decline Alerts
         st.markdown("---")
@@ -315,7 +340,7 @@ def main():
             alerts = detect_revenue_decline_alerts(df)
             display_alerts(alerts)
         except Exception as e:
-            st.info("Alert system requires time-series data with Date and Total_Sales columns")
+            st.info("🚨 Revenue alerts require Date and Total_Sales columns for time-series analysis.")
         
         # Churn Prediction
         st.markdown("---")
@@ -547,3 +572,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
