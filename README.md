@@ -149,6 +149,40 @@ Perfect for testing all dashboard features! 🎉
 
 ---
 
+## 🗂️ Other Datasets
+
+To showcase **robustness across real-world schemas**, this repo includes an `Other_Datasets` folder with curated CSVs from **Kaggle**.  
+Each dataset highlights a unique scenario — so you can explore how the dashboard adapts to different data structures and business contexts.
+
+---
+
+### 🛒 Superstore Sales  
+Retail transactions with **dates, customers, products, sales, and profit**.  
+Perfect for full end-to-end testing — KPIs, alerts, churn, time series, pie charts, and correlations.  
+**Credit:** [Rohit Sahoo (Kaggle)](https://www.kaggle.com/rohitsahoo).
+
+---
+
+### 🏬 Walmart Sales  
+Store-level **weekly sales** with external factors like **temperature, fuel price, CPI, unemployment**, and **holiday flags**.  
+Ideal for **time series**, **distributions**, **correlations**, and **department/store analysis**.  
+**Credit:** Kaggle contributors.
+
+---
+
+### 🛍️ Amazon Product Sales  
+Product catalog data including **prices, discounts, ratings, and reviews**.  
+Perfect for **category analysis**, **distributions**, and **correlation heatmaps** — especially when a **date column** isn’t present.  
+**Credit:** [Karkavelraja (Kaggle)](https://www.kaggle.com/karkavelraja).
+
+---
+
+### 🌍 Online Retail (UCI)  
+Real **UK e-commerce transactions** at scale (**500K+ rows**).  
+Validates performance and enables deep-dive analyses — time series, category breakdowns, and large-scale dashboard testing.  
+**Credit:** [Lakshmi N. Pathi (Kaggle)](https://www.kaggle.com/lakshminpathi) | Original data from [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/online+retail).
+
+
 ## 🎨 Design Philosophy
 
 ### **SAP-Inspired Interface**
