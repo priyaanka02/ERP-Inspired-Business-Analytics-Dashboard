@@ -274,8 +274,16 @@ def main():
             upload_time = st.session_state.last_upload_time.strftime("%Y-%m-%d %H:%M:%S")
             st.sidebar.info(f"🕐 Last updated: {upload_time}")
         
+        # Smart column mapping - ADD THESE 3 LINES
+        column_map = smart_column_mapper(df)
+        df = apply_column_mapping(df, column_map)
+        # Show detected mappings
+        if column_map:
+            st.sidebar.success(f"✅ Auto-mapped {len(column_map)} columns")
+        
         # Detect columns
         detected = smart_data_detection(df)
+
         
         # Generate KPIs
         st.markdown("## 📊 Key Performance Indicators")
