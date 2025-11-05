@@ -444,8 +444,8 @@ def main():
                     st.plotly_chart(fig, use_container_width=True)
             
                     st.info("🔴 Red = Positive | ⚪ White = None | 🔵 Blue = Negative")
-            else:
-                st.info("Need at least 2 numeric columns for correlation analysis")
+                else:
+                    st.info("Need at least 2 numeric columns for correlation analysis")
 
         
         # Categories Tab
