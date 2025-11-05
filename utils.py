@@ -7,23 +7,68 @@ def parse_dates_robust(series):
     """Robust date parsing that handles multiple formats"""
     return pd.to_datetime(series, errors='coerce', dayfirst=True, format='mixed')
 
+def detect_currency_symbol(df):
+    """
+    Detect the currency symbol used in the dataset.
+    Returns the detected symbol or None if not found.
+    """
+    # Check common price/amount columns for currency symbols
+    for col in df.columns:
+        if any(pattern in col.lower() for pattern in ['price', 'amount', 'sales', 'revenue', 'total']):
+            # Get first non-null value
+            sample_values = df[col].dropna().astype(str)
+            if len(sample_values) > 0:
+                sample = sample_values.iloc[0]
+                # Extract currency symbol
+                match = re.search(r'[₹$€£¥]', str(sample))
+                if match:
+                    return match.group(0)
+    
+    return '$'  # Default to dollar if no symbol found
+
 def parse_currency(series):
     """
     Parse currency strings removing symbols and commas.
-    Handles: ₹, $, €, £, commas, spaces
+    Handles: ₹, $, €, £, ¥, commas, spaces
     Example: '₹1,099' → 1099.0
     """
     def clean_price(value):
         if pd.isna(value):
             return None
         # Convert to string and remove currency symbols, commas, spaces
-        cleaned = re.sub(r'[₹$€£,\s]', '', str(value))
+        cleaned = re.sub(r'[₹$€£¥,\s]', '', str(value))
         try:
             return float(cleaned)
         except:
             return None
     
     return series.apply(clean_price)
+
+def format_currency(value, currency_symbol='$'):
+    """
+    Format a numeric value as currency with appropriate symbol.
+    Handles large numbers with K/M/B suffixes for readability.
+    """
+    if pd.isna(value) or value is None:
+        return f"{currency_symbol}0"
+    
+    # Convert to float
+    try:
+        value = float(value)
+    except:
+        return f"{currency_symbol}0"
+    
+    # Format based on magnitude
+    if abs(value) >= 1_000_000_000:  # Billions
+        return f"{currency_symbol}{value/1_000_000_000:.2f}B"
+    elif abs(value) >= 1_000_000:  # Millions
+        return f"{currency_symbol}{value/1_000_000:.2f}M"
+    elif abs(value) >= 100_000:  # Hundred thousands (use K for Indian context)
+        return f"{currency_symbol}{value/1_000:.1f}K"
+    elif abs(value) >= 1_000:  # Thousands
+        return f"{currency_symbol}{value:,.0f}"
+    else:
+        return f"{currency_symbol}{value:.2f}"
 
 def smart_column_mapper(df):
     """
@@ -33,11 +78,8 @@ def smart_column_mapper(df):
     column_map = {}
     columns_lower = {col.lower(): col for col in df.columns}
     
-    # ============================================
-    # DATE COLUMNS - Exhaustive patterns
-    # ============================================
+    # DATE COLUMNS
     date_priority = [
-        # Order/Transaction dates
         'order_date', 'orderdate', 'order date',
         'transaction_date', 'transactiondate', 'transaction date',
         'purchase_date', 'purchasedate', 'purchase date',
@@ -45,21 +87,17 @@ def smart_column_mapper(df):
         'invoice_date', 'invoicedate', 'invoice date',
         'billing_date', 'billingdate', 'billing date',
         'payment_date', 'paymentdate', 'payment date',
-        # Shipping dates
         'ship_date', 'shipdate', 'ship date',
         'shipping_date', 'shippingdate', 'shipping date',
         'delivery_date', 'deliverydate', 'delivery date',
         'shipped_date', 'shippeddate', 'shipped date',
-        # System dates
         'created_at', 'createdat', 'created at', 'created',
         'updated_at', 'updatedat', 'updated at', 'updated',
         'modified_at', 'modifiedat', 'modified at', 'modified',
         'date_created', 'datecreated', 'date created',
         'date_added', 'dateadded', 'date added',
-        # Generic date columns
         'date', 'datetime', 'timestamp', 'time',
         'dt', 'day', 'event_date', 'eventdate',
-        # Period dates
         'period', 'period_date', 'perioddate',
         'week', 'week_date', 'weekdate',
         'month', 'month_date', 'monthdate',
@@ -71,11 +109,8 @@ def smart_column_mapper(df):
             column_map['Date'] = columns_lower[pattern]
             break
     
-    # ============================================
-    # CUSTOMER COLUMNS - Exhaustive patterns
-    # ============================================
+    # CUSTOMER COLUMNS
     customer_priority = [
-        # Customer names
         'customer_name', 'customername', 'customer name',
         'client_name', 'clientname', 'client name',
         'buyer_name', 'buyername', 'buyer name',
@@ -83,17 +118,13 @@ def smart_column_mapper(df):
         'account_name', 'accountname', 'account name',
         'contact_name', 'contactname', 'contact name',
         'user_name', 'username', 'user name',
-        # Customer IDs
         'customer_id', 'customerid', 'customer id',
         'client_id', 'clientid', 'client id',
         'buyer_id', 'buyerid', 'buyer id',
         'account_id', 'accountid', 'account id',
         'user_id', 'userid', 'user id',
-        # Generic customer terms
         'customer', 'client', 'buyer', 'purchaser',
-        'user', 'member',
-        'subscriber', 'account', 'person', 'contact',
-        # Email/Phone (can identify customers)
+        'user', 'member', 'subscriber', 'account', 'person', 'contact',
         'email', 'customer_email', 'customeremail',
         'phone', 'customer_phone', 'customerphone'
     ]
@@ -103,29 +134,22 @@ def smart_column_mapper(df):
             column_map['Customer'] = columns_lower[pattern]
             break
     
-    # ============================================
-    # PRODUCT COLUMNS - Exhaustive patterns
-    # ============================================
+    # PRODUCT COLUMNS
     product_priority = [
-        # Product names
         'product_name', 'productname', 'product name',
         'item_name', 'itemname', 'item name',
         'goods_name', 'goodsname', 'goods name',
         'article_name', 'articlename', 'article name',
-        # Product IDs/Codes
         'product_id', 'productid', 'product id',
         'item_id', 'itemid', 'item id',
         'sku', 'sku_code', 'skucode', 'sku code',
         'stock_code', 'stockcode', 'stock code',
         'upc', 'barcode', 'gtin', 'asin',
-        # Descriptions
         'description', 'product_description', 'productdescription',
         'item_description', 'itemdescription',
         'product_details', 'productdetails',
-        # Generic product terms
         'product', 'item', 'goods', 'merchandise',
         'article', 'variant', 'offering',
-        # Categories (can represent products)
         'category', 'product_category', 'productcategory',
         'subcategory', 'product_type', 'producttype',
         'brand', 'manufacturer', 'model'
@@ -136,43 +160,28 @@ def smart_column_mapper(df):
             column_map['Product'] = columns_lower[pattern]
             break
     
-    # ============================================
-    # SALES/REVENUE COLUMNS - Exhaustive patterns
-    # ============================================
+    # SALES/REVENUE COLUMNS
     sales_priority = [
-        # Total sales variations
         'total_sales', 'totalsales', 'total sales',
         'total_revenue', 'totalrevenue', 'total revenue',
         'gross_sales', 'grosssales', 'gross sales',
         'net_sales', 'netsales', 'net sales',
-        # Period sales
         'weekly_sales', 'weeklysales', 'weekly sales',
         'daily_sales', 'dailysales', 'daily sales',
         'monthly_sales', 'monthlysales', 'monthly sales',
-        'quarterly_sales', 'quarterlysales', 'quarterly sales',
-        'annual_sales', 'annualsales', 'annual sales',
-        'yearly_sales', 'yearlysales', 'yearly sales',
-        # Generic sales/revenue
         'sales', 'revenue', 'income', 'earnings',
-        # Amount variations
         'total_amount', 'totalamount', 'total amount',
         'grand_total', 'grandtotal', 'grand total',
         'net_amount', 'netamount', 'net amount',
-        'gross_amount', 'grossamount', 'gross amount',
         'amount', 'sum', 'total',
-        # Value variations
         'total_value', 'totalvalue', 'total value',
         'order_value', 'ordervalue', 'order value',
-        'transaction_value', 'transactionvalue', 'transaction value',
-        'sale_value', 'salevalue', 'sale value',
         'value',
-        # Price variations (prioritize discounted over actual)
         'discounted_price', 'discountedprice', 'discounted price',
         'sale_price', 'saleprice', 'sale price',
         'selling_price', 'sellingprice', 'selling price',
         'price', 'total_price', 'totalprice', 'total price',
         'actual_price', 'actualprice', 'actual price',
-        # Cost variations (sometimes used for revenue)
         'cost', 'total_cost', 'totalcost', 'total cost'
     ]
     
@@ -181,9 +190,7 @@ def smart_column_mapper(df):
             column_map['Total_Sales'] = columns_lower[pattern]
             break
     
-    # ============================================
     # QUANTITY COLUMNS
-    # ============================================
     quantity_priority = [
         'quantity', 'qty', 'quantities',
         'order_quantity', 'orderquantity', 'order quantity',
@@ -198,9 +205,7 @@ def smart_column_mapper(df):
             column_map['Quantity'] = columns_lower[pattern]
             break
     
-    # ============================================
     # UNIT PRICE COLUMNS
-    # ============================================
     price_priority = [
         'unit_price', 'unitprice', 'unit price',
         'price_per_unit', 'priceperunit', 'price per unit',
@@ -213,7 +218,6 @@ def smart_column_mapper(df):
     
     for pattern in price_priority:
         if pattern in columns_lower:
-            # Don't map if it's already mapped to Total_Sales
             if columns_lower[pattern] != column_map.get('Total_Sales'):
                 column_map['UnitPrice'] = columns_lower[pattern]
                 break
@@ -228,6 +232,12 @@ def apply_column_mapping(df, column_map):
     """
     df_mapped = df.copy()
     
+    # Detect currency symbol BEFORE mapping
+    currency_symbol = detect_currency_symbol(df)
+    
+    # Store currency symbol in dataframe attributes for later use
+    df_mapped.attrs['currency_symbol'] = currency_symbol
+    
     # Add mapped columns
     for standard_name, original_name in column_map.items():
         if original_name in df.columns and standard_name not in df.columns:
@@ -237,7 +247,7 @@ def apply_column_mapping(df, column_map):
     if 'Date' in df_mapped.columns:
         df_mapped['Date'] = parse_dates_robust(df_mapped['Date'])
     
-    # Parse currency columns if they exist (handles ₹, $, €, £ and commas)
+    # Parse currency columns if they exist
     currency_columns = ['Total_Sales', 'UnitPrice']
     for col in currency_columns:
         if col in df_mapped.columns:
@@ -352,6 +362,9 @@ def detect_revenue_decline_alerts(df, threshold_pct=-10):
         if len(monthly_sales) < 2:
             return []
         
+        # Get currency symbol
+        currency = df.attrs.get('currency_symbol', '$')
+        
         alerts = []
         current_month = monthly_sales.iloc[-1]
         previous_month = monthly_sales.iloc[-2]
@@ -363,8 +376,8 @@ def detect_revenue_decline_alerts(df, threshold_pct=-10):
                     'type': 'Revenue Decline',
                     'severity': 'High' if change_pct <= -20 else 'Medium',
                     'message': f'Monthly revenue declined by {abs(change_pct):.1f}%',
-                    'current_value': f'${current_month:,.2f}',
-                    'previous_value': f'${previous_month:,.2f}'
+                    'current_value': format_currency(current_month, currency),
+                    'previous_value': format_currency(previous_month, currency)
                 })
         
         if len(monthly_sales) >= 3:
@@ -374,8 +387,8 @@ def detect_revenue_decline_alerts(df, threshold_pct=-10):
                     'type': 'Negative Trend',
                     'severity': 'Medium',
                     'message': f'3-month revenue trend declining by {abs(recent_trend):.1f}% on average',
-                    'current_value': f'${monthly_sales.iloc[-1]:,.2f}',
-                    'previous_value': f'${monthly_sales.iloc[-3]:,.2f}'
+                    'current_value': format_currency(monthly_sales.iloc[-1], currency),
+                    'previous_value': format_currency(monthly_sales.iloc[-3], currency)
                 })
         
         return alerts
@@ -465,12 +478,16 @@ def predict_churn_risk(df):
         return None
 
 def generate_kpi_summary(df):
-    """Generate automated KPIs with flexible column support"""
+    """Generate automated KPIs with flexible column support and proper currency formatting"""
     kpis = {}
     
-    # Basic KPIs that don't require specific columns
+    # Get currency symbol
+    currency = df.attrs.get('currency_symbol', '$')
+    
+    # Basic KPIs
     kpis['total_orders'] = len(df)
     kpis['data_quality_score'] = round((1 - df.isnull().sum().sum() / (len(df) * len(df.columns))) * 100, 1)
+    kpis['currency_symbol'] = currency  # Store for display
     
     # Date-dependent KPIs
     if 'Date' in df.columns:
@@ -485,8 +502,13 @@ def generate_kpi_summary(df):
     # Sales/Revenue KPIs
     if 'Total_Sales' in df.columns:
         try:
-            kpis['total_revenue'] = df['Total_Sales'].sum()
-            kpis['avg_order_value'] = df['Total_Sales'].mean()
+            total_rev = df['Total_Sales'].sum()
+            avg_order = df['Total_Sales'].mean()
+            
+            kpis['total_revenue'] = total_rev
+            kpis['total_revenue_formatted'] = format_currency(total_rev, currency)
+            kpis['avg_order_value'] = avg_order
+            kpis['avg_order_value_formatted'] = format_currency(avg_order, currency)
         except Exception:
             pass
     
