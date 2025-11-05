@@ -7,161 +7,219 @@ def parse_dates_robust(series):
     return pd.to_datetime(series, errors='coerce', dayfirst=True, format='mixed')
 
 
-def intelligent_column_detection(df):
-    """
-    Intelligently detect ALL columns by semantic meaning and data type.
-    Returns multiple candidates for each category, not just one.
-    """
-    detected = {
-        'date_candidates': [],
-        'customer_candidates': [],
-        'product_candidates': [],
-        'sales_candidates': [],
-        'quantity_candidates': [],
-        'price_candidates': [],
-        'numeric_cols': [],
-        'text_cols': [],
-        'categorical_cols': []
-    }
-    
-    # Basic type detection
-    detected['numeric_cols'] = df.select_dtypes(include=[np.number]).columns.tolist()
-    text_cols = df.select_dtypes(include=['string', 'object']).columns.tolist()
-    detected['text_cols'] = text_cols.copy()
-    
-    # 1. DATE DETECTION - Find ALL date-like columns
-    date_keywords = ['date', 'time', 'timestamp', 'day', 'month', 'year', 'when', 'created', 'updated', 'invoice', 'order', 'ship', 'purchase', 'sale', 'transaction']
-    
-    for col in text_cols:
-        col_lower = col.lower()
-        
-        # Check if column name suggests it's a date
-        is_date_name = any(keyword in col_lower for keyword in date_keywords)
-        
-        # Try to parse as date
-        try:
-            parsed = pd.to_datetime(df[col].dropna().iloc[:100], errors='coerce')
-            successful_parses = parsed.notna().sum()
-            
-            # If >80% parse successfully, it's a date column
-            if successful_parses > 80:
-                detected['date_candidates'].append(col)
-                if col in detected['text_cols']:
-                    detected['text_cols'].remove(col)
-        except:
-            # Even if parsing fails, if name strongly suggests date, add it
-            if is_date_name:
-                detected['date_candidates'].append(col)
-    
-    # 2. CUSTOMER DETECTION - Find ALL customer-like columns
-    customer_keywords = ['customer', 'client', 'buyer', 'purchaser', 'user', 'account', 'person', 'contact', 'name', 'shopper']
-    
-    for col in detected['text_cols']:
-        col_lower = col.lower()
-        if any(keyword in col_lower for keyword in customer_keywords):
-            # Check if it has reasonable cardinality (not too many unique values)
-            unique_ratio = df[col].nunique() / len(df)
-            if unique_ratio < 0.8:  # Not every row is unique
-                detected['customer_candidates'].append(col)
-    
-    # 3. PRODUCT DETECTION - Find ALL product-like columns
-    product_keywords = ['product', 'item', 'sku', 'stock', 'goods', 'merchandise', 'article', 'description', 'category', 'brand']
-    
-    for col in detected['text_cols']:
-        col_lower = col.lower()
-        if any(keyword in col_lower for keyword in product_keywords):
-            detected['product_candidates'].append(col)
-    
-    # 4. SALES/REVENUE DETECTION - Find ALL sales-like numeric columns
-    sales_keywords = ['sales', 'revenue', 'amount', 'total', 'value', 'price', 'cost', 'sum', 'grand']
-    
-    for col in detected['numeric_cols']:
-        col_lower = col.lower()
-        if any(keyword in col_lower for keyword in sales_keywords):
-            detected['sales_candidates'].append(col)
-    
-    # 5. QUANTITY DETECTION - Find ALL quantity-like columns
-    quantity_keywords = ['quantity', 'qty', 'units', 'count', 'volume', 'number', 'amount']
-    
-    for col in detected['numeric_cols']:
-        col_lower = col.lower()
-        if any(keyword in col_lower for keyword in quantity_keywords):
-            detected['quantity_candidates'].append(col)
-    
-    # 6. UNIT PRICE DETECTION - Find ALL price-per-unit columns
-    price_keywords = ['price', 'unit', 'rate', 'cost', 'charge']
-    
-    for col in detected['numeric_cols']:
-        col_lower = col.lower()
-        if any(keyword in col_lower for keyword in price_keywords):
-            if 'total' not in col_lower and 'sum' not in col_lower:
-                detected['price_candidates'].append(col)
-    
-    # 7. CATEGORICAL DETECTION - Low cardinality text columns
-    for col in detected['text_cols']:
-        if col not in detected['customer_candidates'] and col not in detected['product_candidates']:
-            if df[col].nunique() < len(df) * 0.5 and df[col].nunique() < 50:
-                detected['categorical_cols'].append(col)
-    
-    return detected
-
-
 def smart_column_mapper(df):
     """
-    Pick the BEST candidate from each category for standardized names.
-    Priority: most specific name match first.
+    COMPREHENSIVE column mapper that recognizes ANY common business column name.
+    Covers: e-commerce, retail, SaaS, B2B, financial, analytics datasets.
     """
     column_map = {}
     columns_lower = {col.lower(): col for col in df.columns}
     
-    # Date - pick Order Date first, then others
-    date_priority = ['order_date', 'orderdate', 'invoice_date', 'invoicedate', 'date', 'transaction_date', 'sale_date', 'purchase_date', 'ship_date', 'created_at']
+    # ============================================
+    # DATE COLUMNS - Exhaustive patterns
+    # ============================================
+    date_priority = [
+        # Order/Transaction dates
+        'order_date', 'orderdate', 'order date',
+        'transaction_date', 'transactiondate', 'transaction date',
+        'purchase_date', 'purchasedate', 'purchase date',
+        'sale_date', 'saledate', 'sale date',
+        'invoice_date', 'invoicedate', 'invoice date',
+        'billing_date', 'billingdate', 'billing date',
+        'payment_date', 'paymentdate', 'payment date',
+        
+        # Shipping dates
+        'ship_date', 'shipdate', 'ship date',
+        'shipping_date', 'shippingdate', 'shipping date',
+        'delivery_date', 'deliverydate', 'delivery date',
+        'shipped_date', 'shippeddate', 'shipped date',
+        
+        # System dates
+        'created_at', 'createdat', 'created at', 'created',
+        'updated_at', 'updatedat', 'updated at', 'updated',
+        'modified_at', 'modifiedat', 'modified at', 'modified',
+        'date_created', 'datecreated', 'date created',
+        'date_added', 'dateadded', 'date added',
+        
+        # Generic date columns
+        'date', 'datetime', 'timestamp', 'time',
+        'dt', 'day', 'event_date', 'eventdate',
+        
+        # Period dates
+        'period', 'period_date', 'perioddate',
+        'week', 'week_date', 'weekdate',
+        'month', 'month_date', 'monthdate',
+        'year', 'fiscal_date', 'fiscaldate'
+    ]
+    
     for pattern in date_priority:
         if pattern in columns_lower:
             column_map['Date'] = columns_lower[pattern]
             break
     
-    # Customer - pick Customer Name/ID first
-    customer_priority = ['customer_name', 'customername', 'customer', 'customer_id', 'customerid', 'client', 'buyer', 'user']
+    # ============================================
+    # CUSTOMER COLUMNS - Exhaustive patterns
+    # ============================================
+    customer_priority = [
+        # Customer names
+        'customer_name', 'customername', 'customer name',
+        'client_name', 'clientname', 'client name',
+        'buyer_name', 'buyername', 'buyer name',
+        'purchaser_name', 'purchasername', 'purchaser name',
+        'account_name', 'accountname', 'account name',
+        'contact_name', 'contactname', 'contact name',
+        
+        # Customer IDs
+        'customer_id', 'customerid', 'customer id',
+        'client_id', 'clientid', 'client id',
+        'buyer_id', 'buyerid', 'buyer id',
+        'account_id', 'accountid', 'account id',
+        'user_id', 'userid', 'user id',
+        
+        # Generic customer terms
+        'customer', 'client', 'buyer', 'purchaser',
+        'user', 'username', 'user name', 'member',
+        'subscriber', 'account', 'person', 'contact',
+        
+        # Email/Phone (can identify customers)
+        'email', 'customer_email', 'customeremail',
+        'phone', 'customer_phone', 'customerphone'
+    ]
+    
     for pattern in customer_priority:
         if pattern in columns_lower:
             column_map['Customer'] = columns_lower[pattern]
             break
     
-    # Product - pick Product Name first
-    product_priority = ['product_name', 'productname', 'product', 'item_name', 'item', 'description', 'stock_code', 'sku']
+    # ============================================
+    # PRODUCT COLUMNS - Exhaustive patterns
+    # ============================================
+    product_priority = [
+        # Product names
+        'product_name', 'productname', 'product name',
+        'item_name', 'itemname', 'item name',
+        'goods_name', 'goodsname', 'goods name',
+        'article_name', 'articlename', 'article name',
+        
+        # Product IDs/Codes
+        'product_id', 'productid', 'product id',
+        'item_id', 'itemid', 'item id',
+        'sku', 'sku_code', 'skucode', 'sku code',
+        'stock_code', 'stockcode', 'stock code',
+        'upc', 'barcode', 'gtin', 'asin',
+        
+        # Descriptions
+        'description', 'product_description', 'productdescription',
+        'item_description', 'itemdescription',
+        'product_details', 'productdetails',
+        
+        # Generic product terms
+        'product', 'item', 'goods', 'merchandise',
+        'article', 'variant', 'offering',
+        
+        # Categories (can represent products)
+        'category', 'product_category', 'productcategory',
+        'subcategory', 'product_type', 'producttype',
+        'brand', 'manufacturer', 'model'
+    ]
+    
     for pattern in product_priority:
         if pattern in columns_lower:
             column_map['Product'] = columns_lower[pattern]
             break
     
-    # Sales - pick Total_Sales first
-    sales_priority = ['total_sales', 'sales', 'revenue', 'total_revenue', 'amount', 'total_amount', 'value', 'price']
+    # ============================================
+    # SALES/REVENUE COLUMNS - Exhaustive patterns
+    # ============================================
+    sales_priority = [
+        # Total sales variations
+        'total_sales', 'totalsales', 'total sales',
+        'total_revenue', 'totalrevenue', 'total revenue',
+        'gross_sales', 'grosssales', 'gross sales',
+        'net_sales', 'netsales', 'net sales',
+        
+        # Period sales
+        'weekly_sales', 'weeklysales', 'weekly sales',
+        'daily_sales', 'dailysales', 'daily sales',
+        'monthly_sales', 'monthlysales', 'monthly sales',
+        'quarterly_sales', 'quarterlysales', 'quarterly sales',
+        'annual_sales', 'annualsales', 'annual sales',
+        'yearly_sales', 'yearlysales', 'yearly sales',
+        
+        # Generic sales/revenue
+        'sales', 'revenue', 'income', 'earnings',
+        
+        # Amount variations
+        'total_amount', 'totalamount', 'total amount',
+        'grand_total', 'grandtotal', 'grand total',
+        'net_amount', 'netamount', 'net amount',
+        'gross_amount', 'grossamount', 'gross amount',
+        'amount', 'sum', 'total',
+        
+        # Value variations
+        'total_value', 'totalvalue', 'total value',
+        'order_value', 'ordervalue', 'order value',
+        'transaction_value', 'transactionvalue', 'transaction value',
+        'sale_value', 'salevalue', 'sale value',
+        'value',
+        
+        # Price variations
+        'price', 'total_price', 'totalprice', 'total price',
+        'sale_price', 'saleprice', 'sale price',
+        'selling_price', 'sellingprice', 'selling price',
+        
+        # Cost variations (sometimes used for revenue)
+        'cost', 'total_cost', 'totalcost', 'total cost'
+    ]
+    
     for pattern in sales_priority:
         if pattern in columns_lower:
             column_map['Total_Sales'] = columns_lower[pattern]
             break
     
-    # Quantity
-    quantity_priority = ['quantity', 'qty', 'units', 'count']
+    # ============================================
+    # QUANTITY COLUMNS
+    # ============================================
+    quantity_priority = [
+        'quantity', 'qty', 'quantities',
+        'order_quantity', 'orderquantity', 'order quantity',
+        'sold_quantity', 'soldquantity', 'sold quantity',
+        'units', 'units_sold', 'unitssold', 'units sold',
+        'count', 'item_count', 'itemcount', 'item count',
+        'volume', 'number', 'amount'
+    ]
+    
     for pattern in quantity_priority:
         if pattern in columns_lower:
             column_map['Quantity'] = columns_lower[pattern]
             break
     
-    # Unit Price
-    price_priority = ['unit_price', 'unitprice', 'price', 'rate', 'cost']
+    # ============================================
+    # UNIT PRICE COLUMNS
+    # ============================================
+    price_priority = [
+        'unit_price', 'unitprice', 'unit price',
+        'price_per_unit', 'priceperunit', 'price per unit',
+        'item_price', 'itemprice', 'item price',
+        'product_price', 'productprice', 'product price',
+        'list_price', 'listprice', 'list price',
+        'base_price', 'baseprice', 'base price',
+        'price', 'rate', 'unit_cost', 'unitcost'
+    ]
+    
     for pattern in price_priority:
         if pattern in columns_lower:
-            column_map['UnitPrice'] = columns_lower[pattern]
-            break
+            # Don't map if it's already mapped to Total_Sales
+            if columns_lower[pattern] != column_map.get('Total_Sales'):
+                column_map['UnitPrice'] = columns_lower[pattern]
+                break
     
     return column_map
 
 
 def apply_column_mapping(df, column_map):
     """
-    Create standardized columns while preserving originals.
+    Apply standardized column names while preserving originals.
     Auto-calculates Total_Sales if possible.
     """
     df_mapped = df.copy()
@@ -171,7 +229,7 @@ def apply_column_mapping(df, column_map):
         if original_name in df.columns and standard_name not in df.columns:
             df_mapped[standard_name] = df[original_name]
     
-    # Calculate Total_Sales if not exists but Quantity and UnitPrice do
+    # Auto-calculate Total_Sales if Quantity and UnitPrice exist
     if 'Total_Sales' not in df_mapped.columns:
         if 'Quantity' in df_mapped.columns and 'UnitPrice' in df_mapped.columns:
             df_mapped['Total_Sales'] = df_mapped['Quantity'] * df_mapped['UnitPrice']
