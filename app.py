@@ -414,9 +414,9 @@ def main():
                     x=x_col,
                     y=y_col,
                     title=f'{x_col} vs {y_col}',
-                    trendline='ols',
                     color_discrete_sequence=['#0070F2']
-                )
+                    )
+
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Correlation coefficient
