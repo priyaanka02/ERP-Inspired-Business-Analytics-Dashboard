@@ -406,8 +406,8 @@ def main():
        # Correlations Tab
         with tabs[2]:
                 if len(detected['numeric']) >= 2:
-                # Create sub-tabs for scatter plot and heatmap
-                subtab1, subtab2 = st.tabs(["📊 Scatter Plot", "🔥 Correlation Heatmap"])
+                        # Create sub-tabs for scatter plot and heatmap
+                        subtab1, subtab2 = st.tabs(["📊 Scatter Plot", "🔥 Correlation Heatmap"])
         
                 with subtab1:
                     x_col = st.selectbox("X-Axis", detected['numeric'], key='corr_x')
