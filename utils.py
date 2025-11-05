@@ -7,97 +7,151 @@ def parse_dates_robust(series):
     return pd.to_datetime(series, errors='coerce', dayfirst=True, format='mixed')
 
 
+def intelligent_column_detection(df):
+    """
+    Intelligently detect ALL columns by semantic meaning and data type.
+    Returns multiple candidates for each category, not just one.
+    """
+    detected = {
+        'date_candidates': [],
+        'customer_candidates': [],
+        'product_candidates': [],
+        'sales_candidates': [],
+        'quantity_candidates': [],
+        'price_candidates': [],
+        'numeric_cols': [],
+        'text_cols': [],
+        'categorical_cols': []
+    }
+    
+    # Basic type detection
+    detected['numeric_cols'] = df.select_dtypes(include=[np.number]).columns.tolist()
+    text_cols = df.select_dtypes(include=['string', 'object']).columns.tolist()
+    detected['text_cols'] = text_cols.copy()
+    
+    # 1. DATE DETECTION - Find ALL date-like columns
+    date_keywords = ['date', 'time', 'timestamp', 'day', 'month', 'year', 'when', 'created', 'updated', 'invoice', 'order', 'ship', 'purchase', 'sale', 'transaction']
+    
+    for col in text_cols:
+        col_lower = col.lower()
+        
+        # Check if column name suggests it's a date
+        is_date_name = any(keyword in col_lower for keyword in date_keywords)
+        
+        # Try to parse as date
+        try:
+            parsed = pd.to_datetime(df[col].dropna().iloc[:100], errors='coerce')
+            successful_parses = parsed.notna().sum()
+            
+            # If >80% parse successfully, it's a date column
+            if successful_parses > 80:
+                detected['date_candidates'].append(col)
+                if col in detected['text_cols']:
+                    detected['text_cols'].remove(col)
+        except:
+            # Even if parsing fails, if name strongly suggests date, add it
+            if is_date_name:
+                detected['date_candidates'].append(col)
+    
+    # 2. CUSTOMER DETECTION - Find ALL customer-like columns
+    customer_keywords = ['customer', 'client', 'buyer', 'purchaser', 'user', 'account', 'person', 'contact', 'name', 'shopper']
+    
+    for col in detected['text_cols']:
+        col_lower = col.lower()
+        if any(keyword in col_lower for keyword in customer_keywords):
+            # Check if it has reasonable cardinality (not too many unique values)
+            unique_ratio = df[col].nunique() / len(df)
+            if unique_ratio < 0.8:  # Not every row is unique
+                detected['customer_candidates'].append(col)
+    
+    # 3. PRODUCT DETECTION - Find ALL product-like columns
+    product_keywords = ['product', 'item', 'sku', 'stock', 'goods', 'merchandise', 'article', 'description', 'category', 'brand']
+    
+    for col in detected['text_cols']:
+        col_lower = col.lower()
+        if any(keyword in col_lower for keyword in product_keywords):
+            detected['product_candidates'].append(col)
+    
+    # 4. SALES/REVENUE DETECTION - Find ALL sales-like numeric columns
+    sales_keywords = ['sales', 'revenue', 'amount', 'total', 'value', 'price', 'cost', 'sum', 'grand']
+    
+    for col in detected['numeric_cols']:
+        col_lower = col.lower()
+        if any(keyword in col_lower for keyword in sales_keywords):
+            detected['sales_candidates'].append(col)
+    
+    # 5. QUANTITY DETECTION - Find ALL quantity-like columns
+    quantity_keywords = ['quantity', 'qty', 'units', 'count', 'volume', 'number', 'amount']
+    
+    for col in detected['numeric_cols']:
+        col_lower = col.lower()
+        if any(keyword in col_lower for keyword in quantity_keywords):
+            detected['quantity_candidates'].append(col)
+    
+    # 6. UNIT PRICE DETECTION - Find ALL price-per-unit columns
+    price_keywords = ['price', 'unit', 'rate', 'cost', 'charge']
+    
+    for col in detected['numeric_cols']:
+        col_lower = col.lower()
+        if any(keyword in col_lower for keyword in price_keywords):
+            if 'total' not in col_lower and 'sum' not in col_lower:
+                detected['price_candidates'].append(col)
+    
+    # 7. CATEGORICAL DETECTION - Low cardinality text columns
+    for col in detected['text_cols']:
+        if col not in detected['customer_candidates'] and col not in detected['product_candidates']:
+            if df[col].nunique() < len(df) * 0.5 and df[col].nunique() < 50:
+                detected['categorical_cols'].append(col)
+    
+    return detected
+
+
 def smart_column_mapper(df):
     """
-    Intelligently map common column name variations to standard names.
-    Enhanced with more patterns for various datasets.
+    Pick the BEST candidate from each category for standardized names.
+    Priority: most specific name match first.
     """
     column_map = {}
     columns_lower = {col.lower(): col for col in df.columns}
     
-    # Date column patterns (EXPANDED)
-    date_patterns = [
-        'date', 'order_date', 'orderdate', 'order date',
-        'ship_date', 'shipdate', 'ship date',
-        'invoice_date', 'invoicedate', 'invoice date',
-        'transaction_date', 'transactiondate', 'transaction date',
-        'sale_date', 'saledate', 'sale date',
-        'purchase_date', 'purchasedate', 'purchase date',
-        'created_at', 'createdat', 'created at',
-        'timestamp', 'time', 'datetime'
-    ]
-    
-    for pattern in date_patterns:
+    # Date - pick Order Date first, then others
+    date_priority = ['order_date', 'orderdate', 'invoice_date', 'invoicedate', 'date', 'transaction_date', 'sale_date', 'purchase_date', 'ship_date', 'created_at']
+    for pattern in date_priority:
         if pattern in columns_lower:
             column_map['Date'] = columns_lower[pattern]
             break
     
-    # Customer column patterns (EXPANDED)
-    customer_patterns = [
-        'customer', 'customer_name', 'customername', 'customer name',
-        'customer_id', 'customerid', 'customer id',
-        'client', 'client_name', 'clientname', 'client name',
-        'client_id', 'clientid', 'client id',
-        'buyer', 'buyer_name', 'buyername', 'buyer name',
-        'purchaser', 'person', 'account', 'account_name'
-    ]
-    
-    for pattern in customer_patterns:
+    # Customer - pick Customer Name/ID first
+    customer_priority = ['customer_name', 'customername', 'customer', 'customer_id', 'customerid', 'client', 'buyer', 'user']
+    for pattern in customer_priority:
         if pattern in columns_lower:
             column_map['Customer'] = columns_lower[pattern]
             break
     
-    # Product column patterns (EXPANDED)
-    product_patterns = [
-        'product', 'product_name', 'productname', 'product name',
-        'item', 'item_name', 'itemname', 'item name',
-        'description', 'product_description', 'productdescription',
-        'stock_code', 'stockcode', 'stock code',
-        'sku', 'product_id', 'productid', 'product id',
-        'category', 'product_category', 'productcategory'
-    ]
-    
-    for pattern in product_patterns:
+    # Product - pick Product Name first
+    product_priority = ['product_name', 'productname', 'product', 'item_name', 'item', 'description', 'stock_code', 'sku']
+    for pattern in product_priority:
         if pattern in columns_lower:
             column_map['Product'] = columns_lower[pattern]
             break
     
-    # Sales/Revenue column patterns (EXPANDED)
-    sales_patterns = [
-        'total_sales', 'totalsales', 'total sales',
-        'sales', 'revenue', 'total_revenue', 'totalrevenue', 'total revenue',
-        'amount', 'total_amount', 'totalamount', 'total amount',
-        'value', 'total_value', 'totalvalue', 'total value',
-        'price', 'total_price', 'totalprice', 'total price',
-        'cost', 'total_cost', 'totalcost', 'total cost',
-        'grand_total', 'grandtotal', 'grand total',
-        'net_amount', 'netamount', 'net amount'
-    ]
-    
-    for pattern in sales_patterns:
+    # Sales - pick Total_Sales first
+    sales_priority = ['total_sales', 'sales', 'revenue', 'total_revenue', 'amount', 'total_amount', 'value', 'price']
+    for pattern in sales_priority:
         if pattern in columns_lower:
             column_map['Total_Sales'] = columns_lower[pattern]
             break
     
-    # Quantity patterns (NEW - for Online Retail dataset)
-    quantity_patterns = [
-        'quantity', 'qty', 'units', 'count', 'volume',
-        'order_quantity', 'orderquantity', 'order quantity'
-    ]
-    
-    for pattern in quantity_patterns:
+    # Quantity
+    quantity_priority = ['quantity', 'qty', 'units', 'count']
+    for pattern in quantity_priority:
         if pattern in columns_lower:
             column_map['Quantity'] = columns_lower[pattern]
             break
     
-    # Unit Price patterns (NEW - for Online Retail dataset)
-    price_patterns = [
-        'unit_price', 'unitprice', 'unit price',
-        'price_per_unit', 'priceperunit', 'price per unit',
-        'item_price', 'itemprice', 'item price'
-    ]
-    
-    for pattern in price_patterns:
+    # Unit Price
+    price_priority = ['unit_price', 'unitprice', 'price', 'rate', 'cost']
+    for pattern in price_priority:
         if pattern in columns_lower:
             column_map['UnitPrice'] = columns_lower[pattern]
             break
@@ -107,8 +161,8 @@ def smart_column_mapper(df):
 
 def apply_column_mapping(df, column_map):
     """
-    Create a copy of dataframe with standardized column names.
-    Also calculates Total_Sales if Quantity and UnitPrice exist.
+    Create standardized columns while preserving originals.
+    Auto-calculates Total_Sales if possible.
     """
     df_mapped = df.copy()
     
@@ -145,10 +199,9 @@ def calculate_monthly_growth(df):
 def detect_churn_customers(df, days_threshold=60):
     """Detect customers who haven't purchased in the last N days"""
     df['Date'] = parse_dates_robust(df['Date'])
-    today = df['Date'].max()  # Use latest date in dataset
+    today = df['Date'].max()
     threshold_date = today - timedelta(days=days_threshold)
     
-    # Get last purchase date for each customer
     last_purchase = df.groupby('Customer')['Date'].max()
     churned_customers = last_purchase[last_purchase < threshold_date]
     
@@ -165,7 +218,6 @@ def analyze_product_dependency(df):
     if total_revenue == 0:
         return None
     
-    # Calculate concentration ratio (top 3 products)
     top_3_revenue = product_revenue.head(3).sum()
     concentration_ratio = (top_3_revenue / total_revenue) * 100
     
@@ -177,18 +229,15 @@ def analyze_product_dependency(df):
     }
 
 def detect_revenue_decline_alerts(df, threshold_pct=-10):
-    """Detect significant revenue declines (SAP-style alerts)"""
+    """Detect significant revenue declines"""
     df['Date'] = parse_dates_robust(df['Date'])
     
-    # Monthly revenue trend
     monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Total_Sales'].sum()
     
     if len(monthly_sales) < 2:
         return []
     
     alerts = []
-    
-    # Check recent month vs previous month
     current_month = monthly_sales.iloc[-1]
     previous_month = monthly_sales.iloc[-2]
     
@@ -204,7 +253,6 @@ def detect_revenue_decline_alerts(df, threshold_pct=-10):
                 'previous_value': f'${previous_month:,.2f}'
             })
     
-    # Check for negative growth trend (3+ months)
     if len(monthly_sales) >= 3:
         recent_trend = monthly_sales.tail(3).pct_change().mean() * 100
         if recent_trend < -5:
@@ -230,20 +278,18 @@ def calculate_customer_metrics(df):
     
     customer_stats.columns = ['Customer', 'Total_Revenue', 'Order_Count', 'Avg_Order_Value', 'First_Purchase', 'Last_Purchase']
     
-    # Calculate customer lifetime (days)
     customer_stats['Customer_Lifetime_Days'] = (
         parse_dates_robust(customer_stats['Last_Purchase']) - 
         parse_dates_robust(customer_stats['First_Purchase'])
     ).dt.days
     
-    # Rank customers
     customer_stats = customer_stats.sort_values('Total_Revenue', ascending=False)
     customer_stats['Rank'] = range(1, len(customer_stats) + 1)
     
     return customer_stats
 
 def predict_churn_risk(df):
-    """Simple rule-based churn prediction (no ML libraries needed)"""
+    """Simple rule-based churn prediction"""
     df['Date'] = parse_dates_robust(df['Date'])
     today = df['Date'].max()
     
@@ -253,16 +299,10 @@ def predict_churn_risk(df):
     }).reset_index()
     
     customer_stats.columns = ['Customer', 'Last_Purchase', 'Order_Count', 'Total_Revenue']
-    
-    # Calculate days since last purchase
     customer_stats['Days_Since_Purchase'] = (today - parse_dates_robust(customer_stats['Last_Purchase'])).dt.days
     
-    # Simple risk scoring (0-100)
-    # Higher score = higher churn risk
     def calculate_risk(row):
         risk_score = 0
-        
-        # Factor 1: Days since last purchase (0-40 points)
         if row['Days_Since_Purchase'] > 90:
             risk_score += 40
         elif row['Days_Since_Purchase'] > 60:
@@ -270,13 +310,11 @@ def predict_churn_risk(df):
         elif row['Days_Since_Purchase'] > 30:
             risk_score += 15
         
-        # Factor 2: Order frequency (0-30 points)
         if row['Order_Count'] < 5:
             risk_score += 30
         elif row['Order_Count'] < 10:
             risk_score += 15
         
-        # Factor 3: Revenue value (0-30 points) - low value = higher risk
         avg_revenue = customer_stats['Total_Revenue'].mean()
         if row['Total_Revenue'] < avg_revenue * 0.5:
             risk_score += 30
@@ -287,7 +325,6 @@ def predict_churn_risk(df):
     
     customer_stats['Churn_Risk_Score'] = customer_stats.apply(calculate_risk, axis=1)
     
-    # Categorize risk
     def categorize_risk(score):
         if score >= 70:
             return 'High'
@@ -301,7 +338,7 @@ def predict_churn_risk(df):
     return customer_stats.sort_values('Churn_Risk_Score', ascending=False)
 
 def generate_kpi_summary(df):
-    """Generate automated KPIs (SAP-style dashboard metrics)"""
+    """Generate automated KPIs"""
     df['Date'] = parse_dates_robust(df['Date'])
     
     kpis = {
@@ -313,11 +350,9 @@ def generate_kpi_summary(df):
         'data_quality_score': round((1 - df.isnull().sum().sum() / (len(df) * len(df.columns))) * 100, 1)
     }
     
-    # Calculate growth
     monthly_growth = calculate_monthly_growth(df)
     kpis['monthly_growth'] = monthly_growth
     
-    # Product analysis
     if 'Product' in df.columns:
         kpis['total_products'] = df['Product'].nunique()
         product_dep = analyze_product_dependency(df)
