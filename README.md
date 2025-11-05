@@ -156,31 +156,35 @@ Each dataset highlights a unique scenario — so you can explore how the dashboa
 
 ---
 
-### 🛒 Superstore Sales  
+### 🛒 Superstore Sales
+[Link to Dataset](https://www.kaggle.com/datasets/rohitsahoo/sales-forecasting)
 Retail transactions with **dates, customers, products, sales, and profit**.  
 Perfect for full end-to-end testing — KPIs, alerts, churn, time series, pie charts, and correlations.  
 **Credit:** [Rohit Sahoo (Kaggle)](https://www.kaggle.com/rohitsahoo).
 
 ---
 
-### 🏬 Walmart Sales  
+### 🏬 Walmart Sales
+[Link to Dataset](https://www.kaggle.com/datasets/mikhail1681/walmart-sales)
 Store-level **weekly sales** with external factors like **temperature, fuel price, CPI, unemployment**, and **holiday flags**.  
 Ideal for **time series**, **distributions**, **correlations**, and **department/store analysis**.  
-**Credit:** Kaggle contributors.
+**Credit:** [Mikhail](https://www.kaggle.com/mikhail1681)
 
 ---
 
-### 🛍️ Amazon Product Sales  
+### 🛍️ Amazon Product Sales
+[Link to Dataset](https://www.kaggle.com/datasets/karkavelrajaj/amazon-sales-dataset)
 Product catalog data including **prices, discounts, ratings, and reviews**.  
 Perfect for **category analysis**, **distributions**, and **correlation heatmaps** — especially when a **date column** isn’t present.  
-**Credit:** [Karkavelraja (Kaggle)](https://www.kaggle.com/karkavelraja).
+**Credit:** [Karkavelraja (Kaggle)](https://www.kaggle.com/karkavelrajaj).
 
 ---
 
-### 🌍 Online Retail (UCI)  
+### 🌍 Online Retail (UCI).
+[Link to Dataset](https://www.kaggle.com/datasets/lakshmi25npathi/online-retail-dataset)
 Real **UK e-commerce transactions** at scale (**500K+ rows**).  
 Validates performance and enables deep-dive analyses — time series, category breakdowns, and large-scale dashboard testing.  
-**Credit:** [Lakshmi N. Pathi (Kaggle)](https://www.kaggle.com/lakshminpathi) | Original data from [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/online+retail).
+**Credit:** [Lakshmi N. Pathi (Kaggle)](https://www.kaggle.com/lakshmi25npathi) | Original data from [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/online+retail).
 
 
 ## 🎨 Design Philosophy
