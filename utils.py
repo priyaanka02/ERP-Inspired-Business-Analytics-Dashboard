@@ -6,81 +6,200 @@ def calculate_monthly_growth(df):
     """Calculate month-over-month growth percentage"""
     df['Date'] = pd.to_datetime(df['Date'])
     monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Total_Sales'].sum()
-
+    
     if len(monthly_sales) < 2:
         return 0.0
-
+    
     current_month = monthly_sales.iloc[-1]
     previous_month = monthly_sales.iloc[-2]
-
+    
     if previous_month == 0:
         return 0.0
-
+    
     growth = ((current_month - previous_month) / previous_month) * 100
     return round(growth, 2)
 
 def detect_churn_customers(df, days_threshold=60):
     """Detect customers who haven't purchased in the last N days"""
     df['Date'] = pd.to_datetime(df['Date'])
-    today = datetime.now()
+    today = df['Date'].max()  # Use latest date in dataset
     threshold_date = today - timedelta(days=days_threshold)
-
+    
     # Get last purchase date for each customer
     last_purchase = df.groupby('Customer')['Date'].max()
     churned_customers = last_purchase[last_purchase < threshold_date]
+    
+    return churned_customers.index.tolist(), len(churned_customers)
 
-    return churned_customers.index.tolist()
+def analyze_product_dependency(df):
+    """Analyze revenue concentration by product"""
+    if 'Product' not in df.columns or 'Total_Sales' not in df.columns:
+        return None
+    
+    product_revenue = df.groupby('Product')['Total_Sales'].sum().sort_values(ascending=False)
+    total_revenue = product_revenue.sum()
+    
+    if total_revenue == 0:
+        return None
+    
+    # Calculate concentration ratio (top 3 products)
+    top_3_revenue = product_revenue.head(3).sum()
+    concentration_ratio = (top_3_revenue / total_revenue) * 100
+    
+    return {
+        'product_revenue': product_revenue,
+        'concentration_ratio': round(concentration_ratio, 2),
+        'top_product': product_revenue.index[0] if len(product_revenue) > 0 else None,
+        'top_product_revenue': product_revenue.iloc[0] if len(product_revenue) > 0 else 0
+    }
 
-def analyze_product_dependency(df, threshold=40):
-    """Identify products contributing more than threshold% of revenue"""
-    total_revenue = df['Total_Sales'].sum()
-    product_revenue = df.groupby('Product')['Total_Sales'].sum()
-    product_percentage = (product_revenue / total_revenue) * 100
-
-    high_dependency = product_percentage[product_percentage > threshold]
-    return high_dependency.to_dict()
-
-def generate_business_insights(df):
-    """Generate rule-based business recommendations"""
-    insights = []
-
-    # Monthly growth analysis
-    growth = calculate_monthly_growth(df)
-    if growth < -10:
-        insights.append("🚨 Alert: Revenue declined by {:.1f}% month-over-month. Consider promotional campaigns.".format(abs(growth)))
-    elif growth > 20:
-        insights.append("🚀 Excellent: Revenue grew by {:.1f}% month-over-month. Scale successful strategies.".format(growth))
-
-    # Product dependency analysis
-    dependencies = analyze_product_dependency(df)
-    for product, percentage in dependencies.items():
-        insights.append("⚠️ Risk: {} contributes {:.1f}% of total revenue. Consider portfolio diversification.".format(product, percentage))
-
-    # Churn detection
-    churned = detect_churn_customers(df)
-    if churned:
-        insights.append("📞 Action: {} customers haven't purchased in 60+ days. Initiate retention campaigns.".format(len(churned)))
-
-    # Low performance check
+def detect_revenue_decline_alerts(df, threshold_pct=-10):
+    """Detect significant revenue declines (SAP-style alerts)"""
     df['Date'] = pd.to_datetime(df['Date'])
-    recent_sales = df[df['Date'] >= (datetime.now() - timedelta(days=30))]['Total_Sales'].sum()
-    if recent_sales == 0:
-        insights.append("📊 Note: No recent sales data available. Check data pipeline connectivity.")
+    
+    # Monthly revenue trend
+    monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Total_Sales'].sum()
+    
+    if len(monthly_sales) < 2:
+        return []
+    
+    alerts = []
+    
+    # Check recent month vs previous month
+    current_month = monthly_sales.iloc[-1]
+    previous_month = monthly_sales.iloc[-2]
+    
+    if previous_month > 0:
+        change_pct = ((current_month - previous_month) / previous_month) * 100
+        
+        if change_pct <= threshold_pct:
+            alerts.append({
+                'type': 'Revenue Decline',
+                'severity': 'High' if change_pct <= -20 else 'Medium',
+                'message': f'Monthly revenue declined by {abs(change_pct):.1f}%',
+                'current_value': f'${current_month:,.2f}',
+                'previous_value': f'${previous_month:,.2f}'
+            })
+    
+    # Check for negative growth trend (3+ months)
+    if len(monthly_sales) >= 3:
+        recent_trend = monthly_sales.tail(3).pct_change().mean() * 100
+        if recent_trend < -5:
+            alerts.append({
+                'type': 'Negative Trend',
+                'severity': 'Medium',
+                'message': f'3-month revenue trend declining by {abs(recent_trend):.1f}% on average',
+                'current_value': f'${monthly_sales.iloc[-1]:,.2f}',
+                'previous_value': f'${monthly_sales.iloc[-3]:,.2f}'
+            })
+    
+    return alerts
 
-    if not insights:
-        insights.append("✅ Performance: All key metrics are within normal ranges. Continue monitoring trends.")
+def calculate_customer_metrics(df):
+    """Calculate customer-level performance metrics"""
+    if 'Customer' not in df.columns or 'Total_Sales' not in df.columns:
+        return None
+    
+    customer_stats = df.groupby('Customer').agg({
+        'Total_Sales': ['sum', 'count', 'mean'],
+        'Date': ['min', 'max']
+    }).reset_index()
+    
+    customer_stats.columns = ['Customer', 'Total_Revenue', 'Order_Count', 'Avg_Order_Value', 'First_Purchase', 'Last_Purchase']
+    
+    # Calculate customer lifetime (days)
+    customer_stats['Customer_Lifetime_Days'] = (
+        pd.to_datetime(customer_stats['Last_Purchase']) - 
+        pd.to_datetime(customer_stats['First_Purchase'])
+    ).dt.days
+    
+    # Rank customers
+    customer_stats = customer_stats.sort_values('Total_Revenue', ascending=False)
+    customer_stats['Rank'] = range(1, len(customer_stats) + 1)
+    
+    return customer_stats
 
-    return insights
+def predict_churn_risk(df):
+    """Simple rule-based churn prediction (no ML libraries needed)"""
+    df['Date'] = pd.to_datetime(df['Date'])
+    today = df['Date'].max()
+    
+    customer_stats = df.groupby('Customer').agg({
+        'Date': ['max', 'count'],
+        'Total_Sales': 'sum'
+    }).reset_index()
+    
+    customer_stats.columns = ['Customer', 'Last_Purchase', 'Order_Count', 'Total_Revenue']
+    
+    # Calculate days since last purchase
+    customer_stats['Days_Since_Purchase'] = (today - customer_stats['Last_Purchase']).dt.days
+    
+    # Simple risk scoring (0-100)
+    # Higher score = higher churn risk
+    def calculate_risk(row):
+        risk_score = 0
+        
+        # Factor 1: Days since last purchase (0-40 points)
+        if row['Days_Since_Purchase'] > 90:
+            risk_score += 40
+        elif row['Days_Since_Purchase'] > 60:
+            risk_score += 30
+        elif row['Days_Since_Purchase'] > 30:
+            risk_score += 15
+        
+        # Factor 2: Order frequency (0-30 points)
+        if row['Order_Count'] < 5:
+            risk_score += 30
+        elif row['Order_Count'] < 10:
+            risk_score += 15
+        
+        # Factor 3: Revenue value (0-30 points) - low value = higher risk
+        avg_revenue = customer_stats['Total_Revenue'].mean()
+        if row['Total_Revenue'] < avg_revenue * 0.5:
+            risk_score += 30
+        elif row['Total_Revenue'] < avg_revenue * 0.8:
+            risk_score += 15
+        
+        return min(risk_score, 100)
+    
+    customer_stats['Churn_Risk_Score'] = customer_stats.apply(calculate_risk, axis=1)
+    
+    # Categorize risk
+    def categorize_risk(score):
+        if score >= 70:
+            return 'High'
+        elif score >= 40:
+            return 'Medium'
+        else:
+            return 'Low'
+    
+    customer_stats['Risk_Category'] = customer_stats['Churn_Risk_Score'].apply(categorize_risk)
+    
+    return customer_stats.sort_values('Churn_Risk_Score', ascending=False)
 
-def format_currency(amount):
-    """Format number as currency"""
-    return "${:,.2f}".format(amount)
-
-def format_number(number):
-    """Format large numbers with K/M suffixes"""
-    if number >= 1000000:
-        return "{:.1f}M".format(number / 1000000)
-    elif number >= 1000:
-        return "{:.1f}K".format(number / 1000)
-    else:
-        return str(int(number))
+def generate_kpi_summary(df):
+    """Generate automated KPIs (SAP-style dashboard metrics)"""
+    df['Date'] = pd.to_datetime(df['Date'])
+    
+    kpis = {
+        'total_revenue': df['Total_Sales'].sum(),
+        'total_orders': len(df),
+        'avg_order_value': df['Total_Sales'].mean(),
+        'unique_customers': df['Customer'].nunique() if 'Customer' in df.columns else 0,
+        'date_range': f"{df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}",
+        'data_quality_score': round((1 - df.isnull().sum().sum() / (len(df) * len(df.columns))) * 100, 1)
+    }
+    
+    # Calculate growth
+    monthly_growth = calculate_monthly_growth(df)
+    kpis['monthly_growth'] = monthly_growth
+    
+    # Product analysis
+    if 'Product' in df.columns:
+        kpis['total_products'] = df['Product'].nunique()
+        product_dep = analyze_product_dependency(df)
+        if product_dep:
+            kpis['top_product'] = product_dep['top_product']
+            kpis['product_concentration'] = product_dep['concentration_ratio']
+    
+    return kpis
