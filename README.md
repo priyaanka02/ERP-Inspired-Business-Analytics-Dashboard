@@ -36,7 +36,7 @@ This business analytics dashboard provides an intelligent, automated approach to
 ## ⚡ Installation & Setup
 
 1. **Clone the repository**
-git clone [your-repository-url]
+git clone [https://github.com/priyaanka02/ERP-Inspired-Business-Analytics-Dashboard.git]
 cd erp-business-analytics
 
 
