@@ -1,3 +1,4 @@
+app-FIXED.py
 # ERP-Inspired Business Analytics Dashboard
 # Enhanced with Revenue Alerts, Churn Prediction & SAP-Style KPIs
 
@@ -153,14 +154,19 @@ def smart_data_detection(df):
     }
 
 def display_kpi_cards(kpis):
-    """Display SAP-style KPI cards"""
+    """Display SAP-style KPI cards with proper currency formatting"""
     col1, col2, col3, col4 = st.columns(4)
     
+    # Get currency symbol from KPIs
+    currency = kpis.get('currency_symbol', '$')
+    
     with col1:
+        # Use the pre-formatted value from utils (already has correct currency)
+        revenue_display = kpis.get('total_revenue_formatted', f"{currency}0")
         st.markdown(f"""
         <div class="kpi-card">
             <div class="kpi-label">💰 Total Revenue</div>
-            <div class="kpi-value">${kpis['total_revenue']:,.0f}</div>
+            <div class="kpi-value">{revenue_display}</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -322,7 +328,10 @@ def main():
             # Additional KPI details
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Average Order Value", f"${kpis['avg_order_value']:,.2f}")
+                # Use pre-formatted value with correct currency
+                avg_order_display = kpis.get('avg_order_value_formatted', 
+                                            f"{kpis.get('currency_symbol', '$')}{kpis.get('avg_order_value', 0):,.2f}")
+                st.metric("Average Order Value", avg_order_display)
             with col2:
                 if 'total_products' in kpis:
                     st.metric("Products", kpis['total_products'])
@@ -572,4 +581,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
