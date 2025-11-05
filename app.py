@@ -403,34 +403,34 @@ def main():
             else:
                 st.info("No numeric columns found")
         
-       # Correlations Tab
+               # Correlations Tab
         with tabs[2]:
-                if len(detected['numeric']) >= 2:
-                        # Create sub-tabs for scatter plot and heatmap
-                        subtab1, subtab2 = st.tabs(["📊 Scatter Plot", "🔥 Correlation Heatmap"])
-        
+            if len(detected['numeric']) >= 2:
+                # Create sub-tabs for scatter plot and heatmap
+                subtab1, subtab2 = st.tabs(["📊 Scatter Plot", "🔥 Correlation Heatmap"])
+                
                 with subtab1:
                     x_col = st.selectbox("X-Axis", detected['numeric'], key='corr_x')
                     y_col = st.selectbox("Y-Axis", [col for col in detected['numeric'] if col != x_col], key='corr_y')
-            
+                    
                     fig = px.scatter(
                         df,
                         x=x_col,
                         y=y_col,
                         title=f'{x_col} vs {y_col}',
                         color_discrete_sequence=['#0070F2']
-                        )
+                    )
                     st.plotly_chart(fig, use_container_width=True)
-            
+                    
                     corr = df[x_col].corr(df[y_col])
                     st.metric("Correlation Coefficient", f"{corr:.3f}")
-        
+                
                 with subtab2:
                     st.markdown("### 🔥 Correlation Matrix")
-            
+                    
                     numeric_df = df[detected['numeric']]
                     corr_matrix = numeric_df.corr()
-            
+                    
                     fig = px.imshow(
                         corr_matrix,
                         text_auto='.2f',
@@ -438,14 +438,15 @@ def main():
                         title="Correlation Heatmap",
                         color_continuous_scale='RdBu_r',
                         zmin=-1,
-                            zmax=1
+                        zmax=1
                     )
                     fig.update_layout(height=600)
                     st.plotly_chart(fig, use_container_width=True)
-            
+                    
                     st.info("🔴 Red = Positive | ⚪ White = None | 🔵 Blue = Negative")
-                else:
-                    st.info("Need at least 2 numeric columns for correlation analysis")
+            else:
+                st.info("Need at least 2 numeric columns for correlation analysis")
+
 
         
         # Categories Tab
