@@ -19,6 +19,8 @@ from utils import (
     calculate_customer_metrics,
     predict_churn_risk,
     generate_kpi_summary
+    smart_column_mapper,
+    apply_column_mapping
 )
 
 # Page configuration
