@@ -24,7 +24,7 @@ def detect_currency_symbol(df):
                 if match:
                     return match.group(0)
     
-    return '$'  # Default to dollar if no symbol found
+    return '€'  # Default to Euro if no symbol found
 
 def parse_currency(series):
     """
