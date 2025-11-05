@@ -18,7 +18,7 @@ from utils import (
     detect_revenue_decline_alerts,
     calculate_customer_metrics,
     predict_churn_risk,
-    generate_kpi_summary
+    generate_kpi_summary,
     smart_column_mapper,
     apply_column_mapping
 )
