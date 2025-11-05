@@ -3,54 +3,103 @@ import numpy as np
 from datetime import datetime, timedelta
 
 def parse_dates_robust(series):
-    """Robust date parsing that handles dd/mm/yyyy format (like Superstore data)"""
+    """Robust date parsing that handles multiple formats"""
     return pd.to_datetime(series, errors='coerce', dayfirst=True, format='mixed')
 
 
 def smart_column_mapper(df):
     """
     Intelligently map common column name variations to standard names.
-    Returns a dictionary of standardized mappings.
+    Enhanced with more patterns for various datasets.
     """
     column_map = {}
     columns_lower = {col.lower(): col for col in df.columns}
     
-    # Date column patterns
-    date_patterns = ['date', 'order_date', 'orderdate', 'ship_date', 'shipdate', 
-                     'order date', 'invoice_date', 'invoicedate', 'transaction_date',
-                     'sale_date', 'purchase_date', 'created_at']
+    # Date column patterns (EXPANDED)
+    date_patterns = [
+        'date', 'order_date', 'orderdate', 'order date',
+        'ship_date', 'shipdate', 'ship date',
+        'invoice_date', 'invoicedate', 'invoice date',
+        'transaction_date', 'transactiondate', 'transaction date',
+        'sale_date', 'saledate', 'sale date',
+        'purchase_date', 'purchasedate', 'purchase date',
+        'created_at', 'createdat', 'created at',
+        'timestamp', 'time', 'datetime'
+    ]
     
     for pattern in date_patterns:
         if pattern in columns_lower:
             column_map['Date'] = columns_lower[pattern]
             break
     
-    # Customer column patterns
-    customer_patterns = ['customer', 'customer_name', 'customername', 'customer name',
-                        'client', 'client_name', 'customer_id', 'customerid',
-                        'buyer', 'purchaser', 'person']
+    # Customer column patterns (EXPANDED)
+    customer_patterns = [
+        'customer', 'customer_name', 'customername', 'customer name',
+        'customer_id', 'customerid', 'customer id',
+        'client', 'client_name', 'clientname', 'client name',
+        'client_id', 'clientid', 'client id',
+        'buyer', 'buyer_name', 'buyername', 'buyer name',
+        'purchaser', 'person', 'account', 'account_name'
+    ]
     
     for pattern in customer_patterns:
         if pattern in columns_lower:
             column_map['Customer'] = columns_lower[pattern]
             break
     
-    # Product column patterns
-    product_patterns = ['product', 'product_name', 'productname', 'product name',
-                       'item', 'item_name', 'description', 'category']
+    # Product column patterns (EXPANDED)
+    product_patterns = [
+        'product', 'product_name', 'productname', 'product name',
+        'item', 'item_name', 'itemname', 'item name',
+        'description', 'product_description', 'productdescription',
+        'stock_code', 'stockcode', 'stock code',
+        'sku', 'product_id', 'productid', 'product id',
+        'category', 'product_category', 'productcategory'
+    ]
     
     for pattern in product_patterns:
         if pattern in columns_lower:
             column_map['Product'] = columns_lower[pattern]
             break
     
-    # Sales/Revenue column patterns (most important!)
-    sales_patterns = ['total_sales', 'totalsales', 'total sales', 'sales', 'revenue',
-                     'total_revenue', 'amount', 'total_amount', 'value', 'price']
+    # Sales/Revenue column patterns (EXPANDED)
+    sales_patterns = [
+        'total_sales', 'totalsales', 'total sales',
+        'sales', 'revenue', 'total_revenue', 'totalrevenue', 'total revenue',
+        'amount', 'total_amount', 'totalamount', 'total amount',
+        'value', 'total_value', 'totalvalue', 'total value',
+        'price', 'total_price', 'totalprice', 'total price',
+        'cost', 'total_cost', 'totalcost', 'total cost',
+        'grand_total', 'grandtotal', 'grand total',
+        'net_amount', 'netamount', 'net amount'
+    ]
     
     for pattern in sales_patterns:
         if pattern in columns_lower:
             column_map['Total_Sales'] = columns_lower[pattern]
+            break
+    
+    # Quantity patterns (NEW - for Online Retail dataset)
+    quantity_patterns = [
+        'quantity', 'qty', 'units', 'count', 'volume',
+        'order_quantity', 'orderquantity', 'order quantity'
+    ]
+    
+    for pattern in quantity_patterns:
+        if pattern in columns_lower:
+            column_map['Quantity'] = columns_lower[pattern]
+            break
+    
+    # Unit Price patterns (NEW - for Online Retail dataset)
+    price_patterns = [
+        'unit_price', 'unitprice', 'unit price',
+        'price_per_unit', 'priceperunit', 'price per unit',
+        'item_price', 'itemprice', 'item price'
+    ]
+    
+    for pattern in price_patterns:
+        if pattern in columns_lower:
+            column_map['UnitPrice'] = columns_lower[pattern]
             break
     
     return column_map
@@ -59,12 +108,19 @@ def smart_column_mapper(df):
 def apply_column_mapping(df, column_map):
     """
     Create a copy of dataframe with standardized column names.
+    Also calculates Total_Sales if Quantity and UnitPrice exist.
     """
     df_mapped = df.copy()
     
+    # Add mapped columns
     for standard_name, original_name in column_map.items():
         if original_name in df.columns and standard_name not in df.columns:
             df_mapped[standard_name] = df[original_name]
+    
+    # Calculate Total_Sales if not exists but Quantity and UnitPrice do
+    if 'Total_Sales' not in df_mapped.columns:
+        if 'Quantity' in df_mapped.columns and 'UnitPrice' in df_mapped.columns:
+            df_mapped['Total_Sales'] = df_mapped['Quantity'] * df_mapped['UnitPrice']
     
     return df_mapped
 
