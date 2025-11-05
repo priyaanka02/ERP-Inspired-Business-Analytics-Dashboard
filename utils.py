@@ -2,6 +2,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
+def parse_dates_robust(series):
+    """Robust date parsing that handles dd/mm/yyyy format (like Superstore data)"""
+    return pd.to_datetime(series, errors='coerce', dayfirst=True, format='mixed')
+
+
 def smart_column_mapper(df):
     """
     Intelligently map common column name variations to standard names.
@@ -66,7 +71,7 @@ def apply_column_mapping(df, column_map):
 
 def calculate_monthly_growth(df):
     """Calculate month-over-month growth percentage"""
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = parse_dates_robust(df['Date'])
     monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Total_Sales'].sum()
     
     if len(monthly_sales) < 2:
@@ -83,7 +88,7 @@ def calculate_monthly_growth(df):
 
 def detect_churn_customers(df, days_threshold=60):
     """Detect customers who haven't purchased in the last N days"""
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = parse_dates_robust(df['Date'])
     today = df['Date'].max()  # Use latest date in dataset
     threshold_date = today - timedelta(days=days_threshold)
     
@@ -117,7 +122,7 @@ def analyze_product_dependency(df):
 
 def detect_revenue_decline_alerts(df, threshold_pct=-10):
     """Detect significant revenue declines (SAP-style alerts)"""
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = parse_dates_robust(df['Date'])
     
     # Monthly revenue trend
     monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Total_Sales'].sum()
@@ -171,8 +176,8 @@ def calculate_customer_metrics(df):
     
     # Calculate customer lifetime (days)
     customer_stats['Customer_Lifetime_Days'] = (
-        pd.to_datetime(customer_stats['Last_Purchase']) - 
-        pd.to_datetime(customer_stats['First_Purchase'])
+        parse_dates_robust(customer_stats['Last_Purchase']) - 
+        parse_dates_robust(customer_stats['First_Purchase'])
     ).dt.days
     
     # Rank customers
@@ -183,7 +188,7 @@ def calculate_customer_metrics(df):
 
 def predict_churn_risk(df):
     """Simple rule-based churn prediction (no ML libraries needed)"""
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = parse_dates_robust(df['Date'])
     today = df['Date'].max()
     
     customer_stats = df.groupby('Customer').agg({
@@ -194,7 +199,7 @@ def predict_churn_risk(df):
     customer_stats.columns = ['Customer', 'Last_Purchase', 'Order_Count', 'Total_Revenue']
     
     # Calculate days since last purchase
-    customer_stats['Days_Since_Purchase'] = (today - customer_stats['Last_Purchase']).dt.days
+    customer_stats['Days_Since_Purchase'] = (today - parse_dates_robust(customer_stats['Last_Purchase'])).dt.days
     
     # Simple risk scoring (0-100)
     # Higher score = higher churn risk
@@ -241,7 +246,7 @@ def predict_churn_risk(df):
 
 def generate_kpi_summary(df):
     """Generate automated KPIs (SAP-style dashboard metrics)"""
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = parse_dates_robust(df['Date'])
     
     kpis = {
         'total_revenue': df['Total_Sales'].sum(),
