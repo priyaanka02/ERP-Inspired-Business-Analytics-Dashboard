@@ -1,3 +1,6 @@
+# 🏢 ERP-Inspired Business Analytics Dashboard
+# Enhanced with Revenue Alerts, Churn Prediction & SAP-Style KPIs
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,330 +10,490 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
+# Import enhanced utilities
+from utils import (
+    calculate_monthly_growth,
+    detect_churn_customers,
+    analyze_product_dependency,
+    detect_revenue_decline_alerts,
+    calculate_customer_metrics,
+    predict_churn_risk,
+    generate_kpi_summary
+)
+
 # Page configuration
 st.set_page_config(
-    page_title="🏢 ERP-Powered Universal Business Analytics Dashboard",
-    page_icon="🔍",
+    page_title="🏢 ERP Business Analytics Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS for mobile-responsive and SAP-style design
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 0.5rem;
+    /* SAP-Inspired Color Scheme */
+    :root {
+        --sap-blue: #0070F2;
+        --sap-green: #30914C;
+        --sap-orange: #E76500;
+        --sap-red: #BB0000;
     }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
+    
+    .main-header {
+        background: linear-gradient(135deg, #0070F2 0%, #005ECC 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
         text-align: center;
         margin-bottom: 2rem;
     }
-    .insight-box {
-        background-color: #e8f4f8;
+    
+    .kpi-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid #0070F2;
+        margin-bottom: 1rem;
+    }
+    
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #0070F2;
+        margin: 0.5rem 0;
+    }
+    
+    .kpi-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .alert-high {
+        background: #FFF3F3;
+        border-left: 4px solid #BB0000;
         padding: 1rem;
-        border-radius: 10px;
-        border-left: 5px solid #17a2b8;
-        margin: 1rem 0;
+        border-radius: 5px;
+        margin: 0.5rem 0;
+    }
+    
+    .alert-medium {
+        background: #FFF8E1;
+        border-left: 4px solid #E76500;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 0.5rem 0;
+    }
+    
+    .success-box {
+        background: #F1F8F4;
+        border-left: 4px solid #30914C;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 0.5rem 0;
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .kpi-card {
+            padding: 1rem;
+        }
+        .kpi-value {
+            font-size: 1.5rem;
+        }
+    }
+    
+    /* Status indicators */
+    .status-active {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background: #30914C;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
     }
 </style>
 """, unsafe_allow_html=True)
 
 def smart_data_detection(df):
     """Intelligently detect data types and suggest columns"""
-
-    # Convert to best dtypes automatically
     df = df.convert_dtypes()
-
-    # Detect column types
+    
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     date_cols = []
     text_cols = df.select_dtypes(include=['string', 'object']).columns.tolist()
-
+    
     # Smart date detection
     for col in text_cols.copy():
-        # Try to convert to datetime
         try:
-            pd.to_datetime(df[col].dropna().iloc[:100])  # Test first 100 rows
+            pd.to_datetime(df[col].dropna().iloc[:100])
             date_cols.append(col)
             text_cols.remove(col)
         except:
             pass
-
-    # Detect potential ID columns (mostly unique values)
-    id_cols = []
-    for col in df.columns:
-        if df[col].nunique() / len(df) > 0.95 and col.lower() in ['id', 'index', 'key']:
-            id_cols.append(col)
-
-    # Detect potential categorical columns
-    categorical_cols = []
-    for col in text_cols:
-        if df[col].nunique() < len(df) * 0.1:  # Less than 10% unique values
-            categorical_cols.append(col)
-
+    
+    # Detect potential categorical columns (low cardinality)
+    categorical_cols = [col for col in text_cols if df[col].nunique() < len(df) * 0.5 and df[col].nunique() < 50]
+    
     return {
-        'numeric_cols': numeric_cols,
-        'date_cols': date_cols, 
-        'text_cols': text_cols,
-        'categorical_cols': categorical_cols,
-        'id_cols': id_cols
+        'numeric': numeric_cols,
+        'date': date_cols,
+        'text': text_cols,
+        'categorical': categorical_cols
     }
 
-def create_smart_visualizations(df, col_info):
-    """Create visualizations based on detected column types"""
+def display_kpi_cards(kpis):
+    """Display SAP-style KPI cards"""
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">💰 Total Revenue</div>
+            <div class="kpi-value">${kpis['total_revenue']:,.0f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        growth_color = "#30914C" if kpis['monthly_growth'] >= 0 else "#BB0000"
+        growth_icon = "📈" if kpis['monthly_growth'] >= 0 else "📉"
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">{growth_icon} Monthly Growth</div>
+            <div class="kpi-value" style="color: {growth_color}">{kpis['monthly_growth']:+.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">📦 Total Orders</div>
+            <div class="kpi-value">{kpis['total_orders']:,}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">👥 Customers</div>
+            <div class="kpi-value">{kpis['unique_customers']}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Time series plot if date column exists
-    if col_info['date_cols'] and col_info['numeric_cols']:
-        st.subheader("📈 Time Series Analysis")
-        date_col = st.selectbox("Select Date Column:", col_info['date_cols'])
-        numeric_col = st.selectbox("Select Value Column:", col_info['numeric_cols'])
-
-        if date_col and numeric_col:
-            df_temp = df.copy()
-            df_temp[date_col] = pd.to_datetime(df_temp[date_col], errors='coerce')
-            df_temp = df_temp.dropna(subset=[date_col, numeric_col])
-
-            if not df_temp.empty:
-                daily_data = df_temp.groupby(date_col)[numeric_col].sum().reset_index()
-                fig = px.line(daily_data, x=date_col, y=numeric_col, 
-                            title=f"{numeric_col} Over Time")
-                st.plotly_chart(fig, use_container_width=True)
-
-    # Distribution plots for numeric columns
-    if col_info['numeric_cols']:
-        st.subheader("📊 Distribution Analysis")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            num_col = st.selectbox("Select Column for Distribution:", col_info['numeric_cols'])
-            if num_col:
-                fig = px.histogram(df, x=num_col, title=f"Distribution of {num_col}")
-                st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            if len(col_info['numeric_cols']) >= 2:
-                num_col2 = st.selectbox("Select Second Column:", 
-                                      [c for c in col_info['numeric_cols'] if c != num_col])
-                if num_col2:
-                    fig = px.scatter(df, x=num_col, y=num_col2, 
-                                   title=f"{num_col} vs {num_col2}")
-                    st.plotly_chart(fig, use_container_width=True)
-
-    # Categorical analysis
-    if col_info['categorical_cols']:
-        st.subheader("🎯 Categorical Analysis")
-        cat_col = st.selectbox("Select Categorical Column:", col_info['categorical_cols'])
-
-        if cat_col:
-            # Top categories
-            top_categories = df[cat_col].value_counts().head(10)
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                fig = px.bar(x=top_categories.index, y=top_categories.values,
-                           title=f"Top 10 {cat_col}")
-                st.plotly_chart(fig, use_container_width=True)
-
-            with col2:
-                fig = px.pie(values=top_categories.values, names=top_categories.index,
-                           title=f"{cat_col} Distribution")
-                st.plotly_chart(fig, use_container_width=True)
-
-def generate_smart_insights(df, col_info):
-    """Generate insights based on data analysis"""
-    insights = []
-
-    # Dataset overview
-    insights.append(f"📊 **Dataset Overview**: {len(df)} rows × {len(df.columns)} columns")
-    insights.append(f"📈 **Numeric Columns**: {len(col_info['numeric_cols'])}")
-    insights.append(f"📅 **Date Columns**: {len(col_info['date_cols'])}")
-    insights.append(f"🏷️ **Categorical Columns**: {len(col_info['categorical_cols'])}")
-
-    # Missing values analysis
-    missing_data = df.isnull().sum()
-    if missing_data.sum() > 0:
-        top_missing = missing_data[missing_data > 0].head(3)
-        insights.append(f"⚠️ **Missing Data**: {top_missing.to_dict()}")
-
-    # Data quality insights
-    if col_info['numeric_cols']:
-        for col in col_info['numeric_cols'][:3]:  # Top 3 numeric columns
-            mean_val = df[col].mean()
-            std_val = df[col].std()
-            insights.append(f"📊 **{col}**: Mean = {mean_val:.2f}, Std = {std_val:.2f}")
-
-    return insights
+def display_alerts(alerts):
+    """Display revenue decline alerts"""
+    if not alerts:
+        st.markdown("""
+        <div class="success-box">
+            ✅ <strong>No Critical Alerts</strong> - Revenue performance is healthy
+        </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    st.markdown("### ⚠️ Revenue Alerts")
+    for alert in alerts:
+        alert_class = "alert-high" if alert['severity'] == 'High' else "alert-medium"
+        severity_icon = "🚨" if alert['severity'] == 'High' else "⚠️"
+        
+        st.markdown(f"""
+        <div class="{alert_class}">
+            {severity_icon} <strong>{alert['type']}</strong> ({alert['severity']} Priority)<br>
+            {alert['message']}<br>
+            <small>Current: {alert['current_value']} | Previous: {alert['previous_value']}</small>
+        </div>
+        """, unsafe_allow_html=True)
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🏢 ERP-Powered Universal Business Analytics Dashboard</h1>', 
-                unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Upload ANY CSV/Excel file and get instant analytics - Works with Kaggle datasets!</p>', 
-                unsafe_allow_html=True)
-
+    st.markdown("""
+    <div class="main-header">
+        <h1>🏢 ERP-Inspired Business Analytics Dashboard</h1>
+        <p style="margin: 0;">SAP-Style Reporting with Real-Time Insights | <span class="status-active"></span> Live</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Initialize session state
+    if 'df' not in st.session_state:
+        st.session_state.df = None
+    if 'last_upload_time' not in st.session_state:
+        st.session_state.last_upload_time = None
+    
     # Sidebar
-    st.sidebar.title("📁 Data Upload")
-
+    st.sidebar.markdown("## 📂 Data Upload")
+    st.sidebar.markdown("Upload your business data (CSV/Excel)")
+    
     uploaded_file = st.sidebar.file_uploader(
-        "Choose your data file",
+        "Choose a file",
         type=['csv', 'xlsx', 'xls'],
-        help="Upload any CSV or Excel file - the dashboard will auto-detect columns!"
+        help="Supports CSV and Excel formats"
     )
-
-    # Load sample data option
-    use_sample = st.sidebar.checkbox("Use Sample ERP Data", value=not uploaded_file)
-
-    # Load data
-    try:
-        if uploaded_file:
+    
+    # Load demo data option
+    use_demo = st.sidebar.checkbox("📊 Use Demo Data (10,000+ records)", value=False)
+    
+    # Handle file upload or demo data
+    if uploaded_file is not None:
+        try:
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
-            st.success(f"✅ Loaded {uploaded_file.name} successfully!")
-        elif use_sample:
-            df = pd.read_csv('sample_data.csv')
-            st.info("📊 Using sample ERP data")
-        else:
-            st.warning("Please upload a file or use sample data")
+            
+            st.session_state.df = df
+            st.session_state.last_upload_time = datetime.now()
+            st.sidebar.success(f"✅ Loaded {len(df):,} records")
+            
+        except Exception as e:
+            st.sidebar.error(f"Error loading file: {str(e)}")
             return
-
-    except Exception as e:
-        st.error(f"❌ Error loading file: {str(e)}")
-        st.info("💡 Make sure your file is a valid CSV or Excel format")
-        return
-
-    # Smart column detection
-    with st.spinner("🔍 Analyzing your data..."):
-        col_info = smart_data_detection(df)
-
-    # Display data info
-    st.markdown("## 📋 Data Overview")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("📊 Total Rows", f"{len(df):,}")
-
-    with col2:
-        st.metric("📋 Total Columns", f"{len(df.columns)}")
-
-    with col3:
-        st.metric("🔢 Numeric Columns", f"{len(col_info['numeric_cols'])}")
-
-    with col4:
-        st.metric("📅 Date Columns", f"{len(col_info['date_cols'])}")
-
-    # Column type detection results
-    st.markdown("### 🎯 Auto-Detected Column Types")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if col_info['numeric_cols']:
-            st.write("**📊 Numeric Columns:**")
-            for col in col_info['numeric_cols']:
-                st.write(f"• {col}")
-
-        if col_info['date_cols']:
-            st.write("**📅 Date Columns:**")
-            for col in col_info['date_cols']:
-                st.write(f"• {col}")
-
-    with col2:
-        if col_info['categorical_cols']:
-            st.write("**🏷️ Categorical Columns:**")
-            for col in col_info['categorical_cols']:
-                st.write(f"• {col}")
-
-        if col_info['text_cols']:
-            st.write("**📝 Text Columns:**")
-            for col in col_info['text_cols'][:5]:  # Show first 5
-                st.write(f"• {col}")
-
-    # Data filtering
-    st.markdown("## 🔧 Data Filters")
-
-    # Row sampling for large datasets
-    if len(df) > 10000:
-        sample_size = st.slider("Sample Size (for performance)", 1000, len(df), 10000)
-        df = df.sample(n=sample_size, random_state=42)
-        st.info(f"📊 Using {sample_size} random samples for analysis")
-
-    # Column selection
-    selected_columns = st.multiselect(
-        "Select Columns for Analysis:",
-        options=df.columns.tolist(),
-        default=df.columns.tolist()[:10]  # First 10 columns by default
-    )
-
-    if selected_columns:
-        df_filtered = df[selected_columns]
-    else:
-        df_filtered = df
-
-    # Smart visualizations
-    st.markdown("## 📊 Smart Analytics")
-
-    create_smart_visualizations(df_filtered, 
-                               smart_data_detection(df_filtered))
-
-    # Statistical summary
-    if col_info['numeric_cols']:
-        st.markdown("## 📈 Statistical Summary")
-        numeric_df = df_filtered.select_dtypes(include=[np.number])
-        if not numeric_df.empty:
-            st.dataframe(numeric_df.describe())
-
-    # Correlation matrix
-    if len(col_info['numeric_cols']) > 1:
-        st.markdown("## 🔗 Correlation Analysis")
-        numeric_df = df_filtered.select_dtypes(include=[np.number])
-        if len(numeric_df.columns) > 1:
-            corr_matrix = numeric_df.corr()
-            fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
-                          title="Correlation Matrix")
+    
+    elif use_demo:
+        # Load sample data
+        try:
+            df = pd.read_csv('sample_data.csv')
+            st.session_state.df = df
+            st.sidebar.success(f"✅ Loaded {len(df):,} demo records")
+        except:
+            st.sidebar.error("Demo data file not found")
+            return
+    
+    # Main content
+    if st.session_state.df is not None:
+        df = st.session_state.df.copy()
+        
+        # Display upload time
+        if st.session_state.last_upload_time:
+            upload_time = st.session_state.last_upload_time.strftime("%Y-%m-%d %H:%M:%S")
+            st.sidebar.info(f"🕐 Last updated: {upload_time}")
+        
+        # Detect columns
+        detected = smart_data_detection(df)
+        
+        # Generate KPIs
+        st.markdown("## 📊 Key Performance Indicators")
+        
+        try:
+            kpis = generate_kpi_summary(df)
+            display_kpi_cards(kpis)
+            
+            # Additional KPI details
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Average Order Value", f"${kpis['avg_order_value']:,.2f}")
+            with col2:
+                if 'total_products' in kpis:
+                    st.metric("Products", kpis['total_products'])
+            with col3:
+                st.metric("Data Quality", f"{kpis['data_quality_score']}%")
+            
+        except Exception as e:
+            st.warning(f"Could not generate all KPIs: {str(e)}")
+        
+        # Revenue Decline Alerts
+        st.markdown("---")
+        st.markdown("## 🚨 Real-Time Business Alerts")
+        
+        try:
+            alerts = detect_revenue_decline_alerts(df)
+            display_alerts(alerts)
+        except Exception as e:
+            st.info("Alert system requires time-series data with Date and Total_Sales columns")
+        
+        # Churn Prediction
+        st.markdown("---")
+        st.markdown("## 🎯 Customer Churn Prediction")
+        
+        try:
+            churn_data = predict_churn_risk(df)
+            
+            # Display high-risk customers
+            high_risk = churn_data[churn_data['Risk_Category'] == 'High']
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🔴 High Risk", len(high_risk))
+            with col2:
+                medium_risk = churn_data[churn_data['Risk_Category'] == 'Medium']
+                st.metric("🟡 Medium Risk", len(medium_risk))
+            with col3:
+                low_risk = churn_data[churn_data['Risk_Category'] == 'Low']
+                st.metric("🟢 Low Risk", len(low_risk))
+            
+            # Show top at-risk customers
+            if len(high_risk) > 0:
+                st.markdown("### Top At-Risk Customers")
+                display_churn = high_risk[['Customer', 'Churn_Risk_Score', 'Days_Since_Purchase', 'Total_Revenue']].head(10)
+                st.dataframe(display_churn, use_container_width=True)
+            
+            # Churn risk distribution chart
+            fig = px.histogram(
+                churn_data,
+                x='Churn_Risk_Score',
+                color='Risk_Category',
+                title='Churn Risk Distribution',
+                labels={'Churn_Risk_Score': 'Risk Score', 'count': 'Number of Customers'},
+                color_discrete_map={'High': '#BB0000', 'Medium': '#E76500', 'Low': '#30914C'}
+            )
             st.plotly_chart(fig, use_container_width=True)
-
-    # Smart insights
-    st.markdown("## 🧠 Smart Insights")
-    insights = generate_smart_insights(df_filtered, col_info)
-
-    for insight in insights:
-        st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
-
-    # Raw data view
-    st.markdown("## 📋 Data Preview")
-
-    # Show data types
-    st.write("**Column Information:**")
-    col_types = pd.DataFrame({
-        'Column': df_filtered.columns,
-        'Data Type': df_filtered.dtypes,
-        'Non-Null Count': df_filtered.count(),
-        'Null Count': df_filtered.isnull().sum()
-    })
-    st.dataframe(col_types, use_container_width=True)
-
-    # Data preview
-    st.write("**Data Preview:**")
-    st.dataframe(df_filtered.head(100), use_container_width=True)
-
-    # Download processed data
-    csv = df_filtered.to_csv(index=False)
-    st.download_button(
-        label="📥 Download Processed Data",
-        data=csv,
-        file_name="processed_data.csv",
-        mime="text/csv"
-    )
+            
+        except Exception as e:
+            st.info(f"Churn prediction requires Customer, Date, and Total_Sales columns")
+        
+        # Data Visualization Section
+        st.markdown("---")
+        st.markdown("## 📈 Interactive Visualizations")
+        
+        tabs = st.tabs(["📊 Time Series", "📉 Distributions", "🔗 Correlations", "🎯 Categories"])
+        
+        # Time Series Tab
+        with tabs[0]:
+            if detected['date'] and detected['numeric']:
+                date_col = st.selectbox("Select Date Column", detected['date'], key='ts_date')
+                metric_col = st.selectbox("Select Metric", detected['numeric'], key='ts_metric')
+                
+                df[date_col] = pd.to_datetime(df[date_col])
+                time_series = df.groupby(df[date_col].dt.to_period('D'))[metric_col].sum().reset_index()
+                time_series[date_col] = time_series[date_col].astype(str)
+                
+                fig = px.line(
+                    time_series,
+                    x=date_col,
+                    y=metric_col,
+                    title=f'{metric_col} Over Time',
+                    labels={metric_col: metric_col, date_col: 'Date'}
+                )
+                fig.update_traces(line_color='#0070F2', line_width=2)
+                fig.update_layout(hovermode='x unified')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Upload data with date and numeric columns for time series analysis")
+        
+        # Distributions Tab
+        with tabs[1]:
+            if detected['numeric']:
+                num_col = st.selectbox("Select Column", detected['numeric'], key='dist_col')
+                
+                fig = px.histogram(
+                    df,
+                    x=num_col,
+                    title=f'Distribution of {num_col}',
+                    marginal='box',
+                    color_discrete_sequence=['#0070F2']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Statistics
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Mean", f"{df[num_col].mean():.2f}")
+                with col2:
+                    st.metric("Median", f"{df[num_col].median():.2f}")
+                with col3:
+                    st.metric("Std Dev", f"{df[num_col].std():.2f}")
+                with col4:
+                    st.metric("Range", f"{df[num_col].max() - df[num_col].min():.2f}")
+            else:
+                st.info("No numeric columns found")
+        
+        # Correlations Tab
+        with tabs[2]:
+            if len(detected['numeric']) >= 2:
+                x_col = st.selectbox("X-Axis", detected['numeric'], key='corr_x')
+                y_col = st.selectbox("Y-Axis", [col for col in detected['numeric'] if col != x_col], key='corr_y')
+                
+                fig = px.scatter(
+                    df,
+                    x=x_col,
+                    y=y_col,
+                    title=f'{x_col} vs {y_col}',
+                    trendline='ols',
+                    color_discrete_sequence=['#0070F2']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Correlation coefficient
+                corr = df[x_col].corr(df[y_col])
+                st.metric("Correlation Coefficient", f"{corr:.3f}")
+            else:
+                st.info("Need at least 2 numeric columns for correlation analysis")
+        
+        # Categories Tab
+        with tabs[3]:
+            if detected['categorical']:
+                cat_col = st.selectbox("Select Category", detected['categorical'], key='cat_col')
+                
+                if detected['numeric']:
+                    metric_col = st.selectbox("Select Metric", detected['numeric'], key='cat_metric')
+                    
+                    cat_data = df.groupby(cat_col)[metric_col].sum().sort_values(ascending=False).head(10)
+                    
+                    fig = px.bar(
+                        x=cat_data.index,
+                        y=cat_data.values,
+                        title=f'Top 10 {cat_col} by {metric_col}',
+                        labels={'x': cat_col, 'y': metric_col},
+                        color=cat_data.values,
+                        color_continuous_scale='Blues'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No categorical columns found")
+        
+        # Data Preview
+        st.markdown("---")
+        st.markdown("## 🔍 Data Preview")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**Dataset:** {len(df):,} rows × {len(df.columns)} columns")
+        with col2:
+            show_rows = st.number_input("Rows to display", 5, 100, 10)
+        
+        st.dataframe(df.head(show_rows), use_container_width=True)
+        
+        # Download processed data
+        st.markdown("---")
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Processed Data (CSV)",
+            data=csv,
+            file_name=f"processed_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    
+    else:
+        # Welcome screen
+        st.markdown("""
+        ## 👋 Welcome to the ERP Business Analytics Dashboard
+        
+        ### Features:
+        - 📊 **Automated KPI Generation** - Revenue, growth, customer metrics
+        - 🚨 **Real-Time Alerts** - Revenue decline detection
+        - 🎯 **Churn Prediction** - Identify at-risk customers
+        - 📈 **Interactive Charts** - Mobile-responsive visualizations
+        - 💾 **Session Persistence** - Data stays loaded during your session
+        - 📥 **Export Reports** - Download processed data
+        
+        ### Getting Started:
+        1. Upload your CSV/Excel file using the sidebar
+        2. Or check "Use Demo Data" to see it in action
+        3. Explore automated insights and visualizations
+        
+        ### Data Requirements:
+        - **Recommended columns**: Date, Customer, Product, Total_Sales
+        - **Supports**: 10,000+ records
+        - **Formats**: CSV, Excel (.xlsx, .xls)
+        """)
+        
+        st.info("💡 Tip: The dashboard automatically detects your data structure and creates appropriate visualizations!")
 
 if __name__ == "__main__":
     main()
