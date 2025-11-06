@@ -6,7 +6,7 @@
 
 ## 🚀 Project Overview
 
-This business analytics dashboard provides an intelligent, automated approach to analyzing business data with features inspired by enterprise ERP systems. The platform automatically detects data structures, generates key performance indicators (KPIs), and delivers actionable insights through interactive visualizations.
+This business analytics dashboard provides an intelligent, automated approach to analyzing business data with features inspired by ERP systems. The platform automatically detects data structures, generates key performance indicators (KPIs), and delivers actionable insights through interactive visualizations.
 
 ### ✨ Key Features
 
