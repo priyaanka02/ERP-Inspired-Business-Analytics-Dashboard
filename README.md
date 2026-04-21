@@ -8,6 +8,8 @@
 
 This business analytics dashboard provides an intelligent, automated approach to analyzing business data with features inspired by ERP systems. The platform automatically detects data structures, generates key performance indicators (KPIs), and delivers actionable insights through interactive visualizations.
 
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Click_Here-brightgreen?style=for-the-badge)](https://erp-inspired-business-analytics-dashboard-eztkkdb3dqqbikqpz7nz.streamlit.app/)
+
 ### ✨ Key Features
 
 - **🔍 Smart Data Detection**: Automatically recognizes column types and business data patterns
